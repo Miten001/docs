@@ -1,0 +1,42 @@
+<svg width="1000" height="1000" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f0c29"/>
+      <stop offset="0.5" stop-color="#302b63"/>
+      <stop offset="1" stop-color="#24243e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00f5d4"/>
+      <stop offset="1" stop-color="#00bbf9"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- rounded background -->
+  <rect x="40" y="40" width="920" height="920" rx="180" fill="url(#bg)"/>
+  <rect x="40" y="40" width="920" height="920" rx="180" fill="none" stroke="url(#accent)" stroke-width="6" opacity="0.35"/>
+
+  <!-- app window -->
+  <rect x="200" y="250" width="600" height="430" rx="34" fill="#13111f" stroke="url(#accent)" stroke-width="5"/>
+  <!-- window title bar -->
+  <rect x="200" y="250" width="600" height="78" rx="34" fill="#1c1930"/>
+  <rect x="200" y="300" width="600" height="28" fill="#1c1930"/>
+  <circle cx="252" cy="289" r="15" fill="#ff5f56"/>
+  <circle cx="300" cy="289" r="15" fill="#ffbd2e"/>
+  <circle cx="348" cy="289" r="15" fill="#27c93f"/>
+
+  <!-- terminal prompt -->
+  <text x="240" y="445" font-family="Consolas, 'Courier New', monospace" font-size="62" fill="url(#accent)" filter="url(#glow)">&gt;_</text>
+
+  <!-- glitch duplicate (offset) -->
+  <text x="232" y="560" font-family="Consolas, 'Courier New', monospace" font-weight="700" font-size="92" fill="#ff006e" opacity="0.55">RND</text>
+  <text x="248" y="560" font-family="Consolas, 'Courier New', monospace" font-weight="700" font-size="92" fill="#00f5d4" opacity="0.55">RND</text>
+  <text x="240" y="560" font-family="Consolas, 'Courier New', monospace" font-weight="700" font-size="92" fill="#ffffff">RND</text>
+  <text x="455" y="560" font-family="Consolas, 'Courier New', monospace" font-weight="700" font-size="92" fill="url(#accent)" filter="url(#glow)">.exe</text>
+
+  <!-- name -->
+  <text x="500" y="790" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="78" fill="#ffffff" letter-spacing="2">Random<tspan fill="#00f5d4">.exe</tspan></text>
+</svg>

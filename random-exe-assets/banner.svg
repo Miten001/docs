@@ -1,0 +1,46 @@
+<svg width="2560" height="1440" viewBox="0 0 2560 1440" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f0c29"/>
+      <stop offset="0.5" stop-color="#302b63"/>
+      <stop offset="1" stop-color="#24243e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#00f5d4"/>
+      <stop offset="1" stop-color="#00bbf9"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse">
+      <path d="M80 0H0V80" fill="none" stroke="#00f5d4" stroke-width="1" opacity="0.06"/>
+    </pattern>
+  </defs>
+
+  <!-- background -->
+  <rect width="2560" height="1440" fill="url(#bg)"/>
+  <rect width="2560" height="1440" fill="url(#grid)"/>
+
+  <!-- decorative floating code brackets -->
+  <text x="300" y="400" font-family="Consolas, monospace" font-size="180" fill="#00f5d4" opacity="0.08">&lt;/&gt;</text>
+  <text x="2050" y="1150" font-family="Consolas, monospace" font-size="200" fill="#ff006e" opacity="0.08">{ }</text>
+  <text x="180" y="1150" font-family="Consolas, monospace" font-size="120" fill="#00bbf9" opacity="0.10">01101</text>
+  <text x="2150" y="350" font-family="Consolas, monospace" font-size="120" fill="#00f5d4" opacity="0.10">10010</text>
+
+  <!-- ===== SAFE ZONE (center 1546 x 423): keep text here ===== -->
+  <!-- terminal prompt -->
+  <text x="1280" y="560" text-anchor="middle" font-family="Consolas, 'Courier New', monospace" font-size="60" fill="#00f5d4" filter="url(#glow)">&gt; run random.exe</text>
+
+  <!-- glitch title -->
+  <text x="1268" y="730" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="160" fill="#ff006e" opacity="0.6">RANDOM<tspan fill="#ff006e">.exe</tspan></text>
+  <text x="1292" y="730" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="160" fill="#00f5d4" opacity="0.6">RANDOM<tspan>.exe</tspan></text>
+  <text x="1280" y="730" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="160" fill="#ffffff" letter-spacing="2">RANDOM<tspan fill="#00f5d4">.exe</tspan></text>
+
+  <!-- tagline -->
+  <text x="1280" y="830" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="500" font-size="50" fill="#c9c9e0" letter-spacing="6">NO PLOT &#183; NO RULES &#183; JUST VIBES</text>
+
+  <!-- upload schedule pill -->
+  <rect x="1010" y="880" width="540" height="70" rx="35" fill="none" stroke="url(#accent)" stroke-width="3"/>
+  <text x="1280" y="927" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="600" font-size="36" fill="#00f5d4" letter-spacing="3">NEW VIDEOS EVERY WEEK</text>
+</svg>
