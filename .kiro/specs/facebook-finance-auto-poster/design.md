@@ -2,9 +2,19 @@
 
 ## Overview
 
-The Facebook Finance Auto-Poster is an automated content pipeline that generates, designs, and schedules finance-related posts to Facebook pages. The system leverages AI for both text content generation (engaging hooks and educational finance content tailored for US audiences) and image generation (high-engagement visuals with text overlays). It supports bulk scheduling — allowing a single script execution to schedule an entire week or month of content (8-10 posts daily) at optimal engagement times for US-based audiences.
+The Facebook Finance Auto-Poster is an automated content pipeline that generates, designs, and schedules finance-related posts to Facebook pages — **entirely for free**. The system leverages free-tier AI services for both text content generation (Google Gemini free tier for engaging hooks and educational finance content tailored for US audiences) and image generation (Pollinations.ai — completely free, no API key needed). It supports bulk scheduling — allowing a single script execution to schedule an entire week or month of content (8-10 posts daily) at optimal engagement times for US-based audiences.
 
-The system is designed as a CLI-driven automation tool that orchestrates multiple AI services (OpenAI for text, DALL-E/Stable Diffusion for images), an image processing pipeline for text overlay composition, and the Facebook Graph API for post scheduling. The architecture prioritizes reliability, content variety, and compliance with Facebook's rate limits and content policies.
+The system is designed as a CLI-driven automation tool that orchestrates multiple free AI services (Google Gemini for text, Pollinations.ai for images), an image processing pipeline (Pillow — open-source) for text overlay composition, and the Facebook Graph API (free) for post scheduling. The architecture prioritizes reliability, content variety, and compliance with Facebook's rate limits and content policies — all at **zero cost**.
+
+## Cost Summary
+
+| Service | Purpose | Cost |
+|---------|---------|------|
+| Google Gemini API | Text content generation | **FREE** (15 RPM, 1M tokens/day) |
+| Pollinations.ai | Image generation | **FREE** (no API key, unlimited) |
+| Facebook Graph API v18+ | Post scheduling | **FREE** |
+| Pillow (PIL) | Image processing & text overlay | **FREE** (open-source) |
+| **Total** | | **$0/month** |
 
 ## Architecture
 
@@ -15,12 +25,13 @@ graph TD
     Orchestrator --> ImageGen[Image Generator]
     Orchestrator --> TextOverlay[Text Overlay Engine]
     Orchestrator --> Scheduler[Post Scheduler]
-    
-    ContentGen --> AI_Text[AI Text API - OpenAI]
-    ImageGen --> AI_Image[AI Image API - DALL-E / SD]
-    TextOverlay --> ImageProc[Image Processing Library]
+
+
+    ContentGen --> AI_Text[AI Text API - Google Gemini Free Tier]
+    ImageGen --> AI_Image[AI Image API - Pollinations.ai Free]
+    TextOverlay --> ImageProc[Image Processing - Pillow Open Source]
     Scheduler --> TimeCalc[Optimal Time Calculator]
-    Scheduler --> FB_API[Facebook Graph API]
+    Scheduler --> FB_API[Facebook Graph API Free]
     
     Orchestrator --> ContentDB[Content Queue / Local Store]
     ContentDB --> Scheduler
@@ -66,13 +77,14 @@ sequenceDiagram
 ```
 
 
+
 ### Content Generation Flow
 
 ```mermaid
 sequenceDiagram
     participant Orch as Orchestrator
     participant TopicSel as Topic Selector
-    participant AI as OpenAI API
+    participant AI as Google Gemini API (Free)
     participant Validator as Content Validator
 
     Orch->>TopicSel: selectTopic(used_topics[], categories[])
@@ -108,14 +120,15 @@ END INTERFACE
 
 **Responsibilities**:
 - Parse command-line arguments (duration, posts per day, dry-run mode)
-- Validate configuration and API credentials
+- Validate configuration and API credentials (Gemini key, Facebook token)
 - Display progress and summary reports
 - Support preview mode (generate without scheduling)
 
 
+
 ### Component 2: Content Generator
 
-**Purpose**: Generates engaging finance-related text content using AI, ensuring variety and audience relevance.
+**Purpose**: Generates engaging finance-related text content using Google Gemini free tier, ensuring variety and audience relevance.
 
 **Interface**:
 ```pascal
@@ -128,14 +141,15 @@ END INTERFACE
 ```
 
 **Responsibilities**:
-- Generate diverse finance content (tips, news commentary, educational posts, motivational)
+- Generate diverse finance content (tips, news commentary, educational posts, motivational) using Google Gemini
 - Ensure no topic repetition within a configurable window
 - Create attention-grabbing hooks suitable for image overlay
 - Validate content for compliance (no financial advice disclaimers needed, no misleading claims)
+- Fallback to Groq free tier if Gemini rate limit is hit
 
 ### Component 3: Image Generator
 
-**Purpose**: Creates high-engagement finance-themed images using AI image generation APIs.
+**Purpose**: Creates high-engagement finance-themed images using Pollinations.ai (completely free, no API key required).
 
 **Interface**:
 ```pascal
@@ -148,14 +162,15 @@ END INTERFACE
 
 **Responsibilities**:
 - Build effective prompts for finance-themed imagery
-- Generate images at appropriate dimensions for Facebook (1200x630 or 1080x1080)
-- Handle API rate limits and retries
+- Generate images at appropriate dimensions for Facebook (1200x630 or 1080x1080) via Pollinations.ai URL API
+- Handle timeout and retry logic (Pollinations.ai has no rate limits but may have latency)
 - Store generated images locally for processing
+
 
 
 ### Component 4: Text Overlay Engine
 
-**Purpose**: Composites hook text onto generated images with attractive styling, ensuring readability and visual appeal.
+**Purpose**: Composites hook text onto generated images with attractive styling, ensuring readability and visual appeal. Uses Pillow (PIL) — free and open-source.
 
 **Interface**:
 ```pascal
@@ -174,7 +189,7 @@ END INTERFACE
 
 ### Component 5: Post Scheduler
 
-**Purpose**: Calculates optimal posting times for US audiences and schedules posts via the Facebook Graph API.
+**Purpose**: Calculates optimal posting times for US audiences and schedules posts via the Facebook Graph API (free).
 
 **Interface**:
 ```pascal
@@ -194,6 +209,7 @@ END INTERFACE
 - Track scheduled post IDs for status monitoring
 
 
+
 ## Data Models
 
 ### Model 1: RunConfig
@@ -202,10 +218,9 @@ END INTERFACE
 STRUCTURE RunConfig
   duration: Duration          // ONE_WEEK or ONE_MONTH
   posts_per_day: Integer      // 8-10 (default: 10)
-  page_id: String             // Facebook Page ID
-  access_token: String        // Facebook Page Access Token
-  openai_api_key: String      // OpenAI API Key
-  image_api: ImageAPIType     // DALLE or STABLE_DIFFUSION
+  page_id: String             // Facebook Page ID (free)
+  access_token: String        // Facebook Page Access Token (free)
+  gemini_api_key: String      // Google Gemini API Key (FREE from https://aistudio.google.com)
   dry_run: Boolean            // Generate without scheduling
   output_dir: FilePath        // Directory for generated content
   content_categories: List[Category]  // Enabled content categories
@@ -216,6 +231,7 @@ END STRUCTURE
 - posts_per_day must be between 1 and 15
 - duration must be ONE_WEEK or ONE_MONTH
 - access_token must be a valid Facebook page token with publish_pages permission
+- gemini_api_key must be a valid Google AI Studio key (free to obtain)
 - output_dir must be writable
 
 ### Model 2: PostContent
@@ -237,6 +253,7 @@ END STRUCTURE
 - body_text must be 50-500 characters
 - hashtags limited to 5 maximum
 - category must be a valid Category enum value
+
 
 ### Model 3: SchedulablePost
 
@@ -286,6 +303,7 @@ ENUMERATION Category
 END ENUMERATION
 ```
 
+
 ## Algorithmic Pseudocode
 
 ### Main Orchestration Algorithm
@@ -314,22 +332,22 @@ BEGIN
     topic ← selectUniqueTopic(used_topics, config.content_categories)
     used_topics.add(topic)
     
-    // Generate text content
+    // Generate text content via Google Gemini (free tier)
     content ← generatePostContent(topic)
     
-    // Generate image
+    // Generate image via Pollinations.ai (free, no API key)
     raw_image ← generateFinanceImage(content.category)
     
-    // Apply text overlay
+    // Apply text overlay via Pillow (free, open-source)
     final_image ← applyTextOverlay(raw_image, content.hook_text)
     
     // Create schedulable post
     post ← CREATE SchedulablePost(content, final_image)
     posts.append(post)
     
-    // Rate limiting pause
-    IF i MOD 5 = 0 THEN
-      WAIT(2 seconds)  // Respect API rate limits
+    // Rate limiting pause for Gemini free tier (15 RPM)
+    IF i MOD 14 = 0 THEN
+      WAIT(60 seconds)  // Respect Gemini free tier rate limit
     END IF
   END FOR
   
@@ -355,6 +373,7 @@ END
 
 **Preconditions:**
 - config is validated and all API keys are present
+- Gemini API key is valid (free from Google AI Studio)
 - Facebook page token has publish_pages and manage_pages permissions
 - Network connectivity available for API calls
 
@@ -367,6 +386,7 @@ END
 - posts list grows by exactly 1 per iteration
 - used_topics contains all topics used so far (ensures no repeats)
 - Each post has valid content, image, and overlay before being added
+
 
 
 ### Optimal Time Calculation Algorithm
@@ -430,6 +450,7 @@ END
 - times list grows by exactly posts_per_day per outer iteration
 - All times added are chronologically after previously added times
 
+
 ### Content Generation Algorithm
 
 ```pascal
@@ -445,13 +466,25 @@ BEGIN
   system_prompt ← buildSystemPrompt(topic.category)
   user_prompt ← buildUserPrompt(topic)
   
-  // Call AI API with structured output
-  ai_response ← callOpenAI(
+  // Call Google Gemini free tier API with structured output
+  ai_response ← callGemini(
     system: system_prompt,
     user: user_prompt,
     max_tokens: 300,
-    temperature: 0.8
+    temperature: 0.8,
+    model: "gemini-1.5-flash"  // Free tier model
   )
+  
+  // If Gemini rate limited, fallback to Groq free tier
+  IF ai_response.status = RATE_LIMITED THEN
+    ai_response ← callGroq(
+      system: system_prompt,
+      user: user_prompt,
+      max_tokens: 300,
+      temperature: 0.8,
+      model: "llama-3.1-70b-versatile"  // Groq free tier
+    )
+  END IF
   
   // Parse response into structured content
   content ← parseAIResponse(ai_response)
@@ -486,7 +519,7 @@ END
 
 **Preconditions:**
 - topic is a valid Topic with category and name
-- OpenAI API key is configured and valid
+- Gemini API key is configured and valid (free from Google AI Studio)
 - Network connectivity available
 
 **Postconditions:**
@@ -496,6 +529,7 @@ END
 - content.category matches topic.category
 
 **Loop Invariants:** N/A (no loops in this function)
+
 
 
 ### Image Generation & Overlay Algorithm
@@ -509,28 +543,22 @@ BEGIN
   ASSERT category IN Category
   ASSERT length(hook_text) BETWEEN 10 AND 60
   
-  // Step 1: Build image generation prompt
+  // Step 1: Build image generation prompt for Pollinations.ai
   style_keywords ← getStyleKeywords(category)
   prompt ← "Professional finance themed image, " + style_keywords +
             ", modern design, clean composition, " +
-            "space for text overlay, 1200x630 pixels, " +
-            "high quality, US audience appeal"
+            "space for text overlay, high quality, US audience appeal"
   
-  negative_prompt ← "text, words, letters, watermark, low quality, blurry"
+  // Step 2: Generate image via Pollinations.ai (FREE, no API key needed)
+  // Pollinations.ai uses a simple URL-based API
+  encoded_prompt ← urlEncode(prompt)
+  image_url ← "https://image.pollinations.ai/prompt/" + encoded_prompt + "?width=1200&height=630&nologo=true"
   
-  // Step 2: Generate image via AI
-  raw_image_url ← callImageAPI(
-    prompt: prompt,
-    negative_prompt: negative_prompt,
-    size: "1200x630",
-    quality: "hd"
-  )
-  
-  // Step 3: Download and store raw image
-  raw_image_path ← downloadImage(raw_image_url, output_dir)
+  // Step 3: Download and store image from Pollinations.ai
+  raw_image_path ← downloadImage(image_url, output_dir, timeout=60)
   ASSERT fileExists(raw_image_path)
   
-  // Step 4: Apply text overlay
+  // Step 4: Apply text overlay using Pillow (free, open-source)
   overlay_config ← CREATE OverlayStyle(
     position: CENTER,
     font_size: calculateFontSize(hook_text, 1200, 630),
@@ -552,7 +580,7 @@ END
 **Preconditions:**
 - category is a valid Category enum value
 - hook_text is 10-60 characters
-- Image API credentials are configured
+- Network connectivity available (Pollinations.ai requires no API key)
 - output_dir exists and is writable
 
 **Postconditions:**
@@ -562,6 +590,7 @@ END
 - Image dimensions are 1200x630 (Facebook recommended)
 
 **Loop Invariants:** N/A
+
 
 ### Facebook Scheduling Algorithm
 
@@ -593,7 +622,7 @@ BEGIN
           WAIT(rate_status.reset_time - NOW())
         END IF
         
-        // Upload image and schedule post
+        // Upload image and schedule post via Facebook Graph API (free)
         response ← facebookAPI.POST(
           endpoint: "/" + page_id + "/photos",
           params: {
@@ -640,7 +669,7 @@ END
 
 **Preconditions:**
 - All posts have valid content, images, and future scheduled_times
-- Facebook access token has required permissions
+- Facebook access token has required permissions (free to obtain)
 - Network connectivity available
 
 **Postconditions:**
@@ -652,6 +681,7 @@ END
 **Loop Invariants:**
 - scheduled_count + length(failures) = number of posts processed so far
 - Each post is attempted at most max_retries times
+
 
 
 ## Key Functions with Formal Specifications
@@ -687,7 +717,7 @@ PROCEDURE buildSystemPrompt(category)
 - category is a valid Category enum value
 
 **Postconditions:**
-- Returned prompt instructs AI to generate finance content for US audience
+- Returned prompt instructs Gemini to generate finance content for US audience
 - Prompt specifies the output format (hook_text + body_text)
 - Prompt includes category-specific guidelines
 - Prompt length does not exceed 2000 characters
@@ -737,19 +767,59 @@ PROCEDURE distributeAcrossWindows(posts_per_day, windows)
 **Loop Invariants:**
 - Allocated slots sum equals loop iteration count
 
+### Function 5: callGemini()
+
+```pascal
+PROCEDURE callGemini(system, user, max_tokens, temperature, model)
+  INPUT: system of type String, user of type String, max_tokens of type Integer, temperature of type Float, model of type String
+  OUTPUT: response of type AIResponse
+```
+
+**Preconditions:**
+- GEMINI_API_KEY environment variable is set (free from Google AI Studio)
+- model is a valid Gemini model name (e.g., "gemini-1.5-flash")
+- Network connectivity available
+
+**Postconditions:**
+- response contains generated text OR rate_limit error status
+- If successful, response.text is non-empty
+- API call respects free tier limits (15 RPM, 1M tokens/day)
+
+**Loop Invariants:** N/A
+
+### Function 6: callPollinations()
+
+```pascal
+PROCEDURE callPollinations(prompt, width, height)
+  INPUT: prompt of type String, width of type Integer, height of type Integer
+  OUTPUT: image_path of type FilePath
+```
+
+**Preconditions:**
+- prompt is non-empty
+- width and height are positive integers
+- Network connectivity available (NO API key needed)
+
+**Postconditions:**
+- image_path points to a downloaded image file
+- Image dimensions match requested width x height
+- Image is in JPEG or PNG format
+
+**Loop Invariants:** N/A
+
+
 
 ## Example Usage
 
 ```pascal
-// Example 1: Schedule one week of posts (10 per day)
+// Example 1: Schedule one week of posts (10 per day) — ALL FREE
 SEQUENCE
   config ← CREATE RunConfig(
     duration: ONE_WEEK,
     posts_per_day: 10,
     page_id: "123456789",
-    access_token: ENV["FB_PAGE_ACCESS_TOKEN"],
-    openai_api_key: ENV["OPENAI_API_KEY"],
-    image_api: DALLE,
+    access_token: ENV["FB_ACCESS_TOKEN"],
+    gemini_api_key: ENV["GEMINI_API_KEY"],
     dry_run: FALSE,
     output_dir: "./output/week_2024_01_15",
     content_categories: [TIPS, EDUCATIONAL, MOTIVATIONAL, STATS_FACTS, MYTH_BUSTING]
@@ -759,6 +829,7 @@ SEQUENCE
   
   DISPLAY "Scheduled " + result.scheduled + " of " + result.total + " posts"
   DISPLAY "Failures: " + result.failed
+  DISPLAY "Total cost: $0 (all services are free!)"
 END SEQUENCE
 
 // Example 2: Preview mode (generate without scheduling)
@@ -781,26 +852,27 @@ SEQUENCE
   END FOR
 END SEQUENCE
 
-// Example 3: Schedule one month of content
+// Example 3: Schedule one month of content — STILL FREE
 SEQUENCE
   config ← CREATE RunConfig(
     duration: ONE_MONTH,
     posts_per_day: 9,
     page_id: "123456789",
-    access_token: ENV["FB_PAGE_ACCESS_TOKEN"],
-    openai_api_key: ENV["OPENAI_API_KEY"],
-    image_api: STABLE_DIFFUSION,
+    access_token: ENV["FB_ACCESS_TOKEN"],
+    gemini_api_key: ENV["GEMINI_API_KEY"],
     dry_run: FALSE,
     output_dir: "./output/month_2024_02"
   )
   
   // This generates ~270 posts (30 days * 9 posts/day)
+  // Cost: $0 — Gemini free tier handles 1M tokens/day, Pollinations.ai is unlimited
   result ← orchestrateBulkGeneration(config)
   
   // Save manifest for tracking
   saveManifest(result, config.output_dir + "/manifest.json")
 END SEQUENCE
 ```
+
 
 ## Correctness Properties
 
@@ -814,7 +886,7 @@ END SEQUENCE
 
 ### Property 2: Content Structural Invariants
 
-*For any* PostContent object produced by the Content_Generator, the hook_text length SHALL be between 10 and 60 characters, the body_text length SHALL be between 50 and 500 characters, and the hashtag count SHALL be at most 5.
+*For any* PostContent object produced by the Content_Generator (via Google Gemini free tier), the hook_text length SHALL be between 10 and 60 characters, the body_text length SHALL be between 50 and 500 characters, and the hashtag count SHALL be at most 5.
 
 **Validates: Requirements 2.2, 2.3, 2.4**
 
@@ -838,19 +910,19 @@ END SEQUENCE
 
 ### Property 6: Image Output Compliance
 
-*For any* image produced by the Image_Generator, the dimensions SHALL be exactly 1200x630 or 1080x1080 pixels, the format SHALL be JPEG or PNG, and the file size SHALL be under 10 MB.
+*For any* image produced by Pollinations.ai and processed by the pipeline, the dimensions SHALL be exactly 1200x630 or 1080x1080 pixels, the format SHALL be JPEG or PNG, and the file size SHALL be under 10 MB.
 
 **Validates: Requirements 4.1, 4.2**
 
 ### Property 7: Image Prompt Construction
 
-*For any* category, the Image_Generator prompt building function SHALL produce a prompt string containing style keywords specific to that category and a specification for text overlay space.
+*For any* category, the Image_Generator prompt building function SHALL produce a prompt string containing style keywords specific to that category and a specification for text overlay space, formatted as a valid Pollinations.ai URL.
 
 **Validates: Requirement 4.3**
 
 ### Property 8: Text Overlay Contrast
 
-*For any* image and hook_text combination processed by the Text_Overlay_Engine, the rendered text SHALL have a contrast ratio of at least 4.5:1 against its immediate background.
+*For any* image and hook_text combination processed by the Text_Overlay_Engine (Pillow), the rendered text SHALL have a contrast ratio of at least 4.5:1 against its immediate background.
 
 **Validates: Requirement 5.1**
 
@@ -928,7 +1000,7 @@ END SEQUENCE
 
 ### Property 21: Token Secrecy
 
-*For any* operation that produces log output or console display, the access token string SHALL never appear in that output.
+*For any* operation that produces log output or console display, the access token string and Gemini API key SHALL never appear in that output.
 
 **Validates: Requirement 10.2**
 
@@ -940,48 +1012,74 @@ END SEQUENCE
 
 ### Property 23: Negative Prompt Inclusion
 
-*For any* image generation request regardless of category, the Image_Generator SHALL include negative prompt keywords to prevent inappropriate or misleading imagery.
+*For any* image generation request to Pollinations.ai regardless of category, the prompt SHALL be constructed to prevent inappropriate or misleading imagery through careful positive prompt engineering.
 
 **Validates: Requirement 10.5**
+
+### Property 24: Free Tier Rate Limit Compliance
+
+*For any* burst of API calls to Google Gemini, the system SHALL not exceed 15 requests per minute (free tier limit), implementing automatic throttling when approaching the limit.
+
+**Validates: Requirement 9.1**
+
 
 
 ## Error Handling
 
-### Error Scenario 1: AI Text Generation Failure
+### Error Scenario 1: Google Gemini Rate Limit (15 RPM Free Tier)
 
-**Condition**: OpenAI API returns an error (rate limit, timeout, invalid response)
-**Response**: Retry up to 3 times with exponential backoff (2s, 4s, 8s). If all retries fail, skip the post and log the failure.
-**Recovery**: Continue generating remaining posts. Include skipped posts in the final report for manual handling.
+**Condition**: Gemini API returns HTTP 429 (rate limit exceeded on free tier — 15 requests per minute)
+**Response**: Immediately switch to Groq free tier as fallback. If Groq also rate-limited, pause for 60 seconds and retry Gemini.
+**Recovery**: Continue generating remaining posts. The system automatically rotates between Gemini and Groq to maximize throughput within free tier limits.
 
-### Error Scenario 2: AI Image Generation Failure
+### Error Scenario 2: Google Gemini Daily Quota Exhausted
 
-**Condition**: Image generation API fails (content policy violation, timeout, quota exceeded)
-**Response**: Retry with a modified prompt (remove potentially flagged keywords). If retry fails, use a fallback template image from a local library of pre-made finance backgrounds.
+**Condition**: Gemini returns quota exceeded error (1M tokens/day limit reached)
+**Response**: Switch entirely to Groq free tier for remaining content. If both exhausted, save progress and schedule resume for next day.
+**Recovery**: Generated content is saved locally. Resume command picks up from where generation stopped the next day when quotas reset.
+
+### Error Scenario 3: Pollinations.ai Image Generation Timeout
+
+**Condition**: Pollinations.ai takes longer than 60 seconds to respond (no rate limits, but may have latency spikes)
+**Response**: Retry up to 3 times with a simplified prompt (fewer adjectives). If all retries timeout, use a fallback template image from a local library of pre-made finance backgrounds.
 **Recovery**: Apply text overlay to fallback image and continue scheduling pipeline.
 
-### Error Scenario 3: Facebook API Rate Limit Exceeded
+### Error Scenario 4: Pollinations.ai Returns Invalid Image
+
+**Condition**: Downloaded file is corrupted, too small, or wrong format
+**Response**: Retry with a slightly modified prompt. If retry fails, use a local fallback template image.
+**Recovery**: Log the failed prompt for debugging. Continue with fallback image.
+
+### Error Scenario 5: Facebook API Rate Limit Exceeded
 
 **Condition**: Facebook returns HTTP 429 or rate limit headers indicate exhaustion
 **Response**: Pause scheduling, wait until rate limit window resets (check `x-business-use-case-usage` header). Resume scheduling after cooldown.
 **Recovery**: All unscheduled posts remain in queue and are retried after the rate limit resets. No data is lost.
 
-### Error Scenario 4: Facebook Token Expired or Invalid
+### Error Scenario 6: Facebook Token Expired or Invalid
 
 **Condition**: Facebook returns HTTP 401 or token validation fails
 **Response**: Immediately halt all scheduling. Save current progress (already scheduled posts and generated content).
-**Recovery**: Notify user to refresh the page access token. Provide a resume command that picks up from where scheduling stopped.
+**Recovery**: Notify user to refresh the page access token (free from Facebook Developer portal). Provide a resume command that picks up from where scheduling stopped.
 
-### Error Scenario 5: Image Overlay Text Doesn't Fit
+### Error Scenario 7: Image Overlay Text Doesn't Fit
 
 **Condition**: Hook text is too long or image has no suitable area for text
 **Response**: Auto-reduce font size down to minimum readable size (16pt). If still doesn't fit, truncate text at word boundary and add ellipsis.
 **Recovery**: Log a warning about the truncation. The post proceeds with adjusted text.
 
-### Error Scenario 6: Disk Space Exhausted
+### Error Scenario 8: Disk Space Exhausted
 
 **Condition**: Output directory runs out of space during image generation
 **Response**: Immediately halt generation. Report how many posts were successfully generated.
 **Recovery**: User frees disk space. Resume command generates only remaining posts.
+
+### Error Scenario 9: Groq Fallback Also Rate Limited
+
+**Condition**: Both Gemini and Groq free tiers are rate-limited simultaneously
+**Response**: Implement a queue-based approach — pause content generation, wait for shortest cooldown period, then resume with whichever service recovers first.
+**Recovery**: No content is lost. Progress is saved and generation continues after cooldown.
+
 
 ## Testing Strategy
 
@@ -993,12 +1091,15 @@ END SEQUENCE
 - Content validation correctly identifies posts that exceed length limits
 - Text overlay font sizing produces readable text for various input lengths
 - Hashtag generation produces valid, relevant tags within the limit
+- Gemini API call correctly formats requests and parses responses
+- Pollinations.ai URL builder correctly encodes prompts and parameters
+- Fallback logic correctly switches from Gemini to Groq when rate limited
 
 **Coverage Goals:** 90%+ coverage on ContentGenerator, PostScheduler, and TextOverlayEngine logic.
 
 ### Property-Based Testing Approach
 
-**Property Test Library**: Hypothesis (Python) or fast-check (TypeScript)
+**Property Test Library**: Hypothesis (Python)
 
 **Properties to test:**
 1. For ANY valid RunConfig, orchestrateBulkGeneration produces exactly `days * posts_per_day` posts
@@ -1006,6 +1107,8 @@ END SEQUENCE
 3. For ANY hook_text of 10-60 chars, applyTextOverlay produces a valid image file
 4. For ANY set of categories and posts_per_day, distributeAcrossWindows assigns all slots
 5. For ANY valid date range, all generated times fall within US engagement windows
+6. For ANY prompt string, the Pollinations.ai URL builder produces a valid URL under 2000 chars
+7. For ANY sequence of API calls, the rate limiter never exceeds 15 calls per minute to Gemini
 
 ### Integration Testing Approach
 
@@ -1014,89 +1117,119 @@ END SEQUENCE
 - Verify post creation, status checking, and cancellation flows
 - Test rate limit handling with mock rate limit responses
 
-**AI API Integration:**
-- Test with actual OpenAI/DALL-E APIs using a dedicated test budget
-- Verify response parsing handles various AI output formats
-- Test content policy rejection handling with edge-case prompts
+**Google Gemini Integration:**
+- Test with actual Gemini free tier API (no cost)
+- Verify response parsing handles various output formats
+- Test rate limit detection and Groq fallback switching
+- Verify daily quota tracking works correctly
+
+**Pollinations.ai Integration:**
+- Test with actual Pollinations.ai endpoint (no cost, no API key)
+- Verify images download correctly at specified dimensions
+- Test timeout handling with slow responses
+- Verify fallback to local template images works
 
 **End-to-End:**
 - Run full pipeline with `dry_run: TRUE` to verify content generation without API side effects
 - Schedule 1 day of posts to a test Facebook page and verify they appear
+- Total test cost: $0 (all services are free tier)
+
 
 
 ## Performance Considerations
 
-**Content Generation Throughput:**
-- OpenAI API calls: ~1-3 seconds per text generation request
-- Image generation: ~10-30 seconds per image (DALL-E) or ~5-15 seconds (Stable Diffusion)
-- Text overlay processing: ~0.5-1 second per image locally
-- For 70 posts (1 week): estimated ~20-40 minutes total generation time
-- For 270 posts (1 month): estimated ~75-150 minutes total generation time
+**Content Generation Throughput (Free Tier Constraints):**
+- Google Gemini free tier: 15 requests/minute, ~1-3 seconds per request
+- Pollinations.ai: No rate limit, but ~10-30 seconds per image generation
+- Text overlay processing (Pillow): ~0.5-1 second per image locally
+- For 70 posts (1 week): estimated ~45-90 minutes total generation time (limited by Gemini 15 RPM)
+- For 270 posts (1 month): estimated ~3-5 hours total generation time (with rate limit pauses)
 
 **Optimization Strategies:**
-- Batch text generation: Generate 5-10 texts per API call using structured prompts
-- Parallel image generation: Process up to 3 concurrent image generation requests
+- Interleave Gemini text calls with Pollinations.ai image downloads (image gen takes longer, overlaps with text rate limit cooldown)
+- Batch text generation: Generate multiple post variants per Gemini call using structured prompts
+- Rotate between Gemini and Groq to effectively double free-tier throughput
 - Local caching: Cache generated content to allow resume after interruption
 - Progressive scheduling: Start scheduling completed posts while others are still generating
+- Parallel image downloads: Pollinations.ai has no rate limits, so download 3-5 images concurrently
 
 **Facebook API Limits:**
-- 200 API calls per hour per page token
+- 200 API calls per hour per page token (free)
 - Maximum 75 days in advance for scheduled posts
 - For 10 posts/day across 30 days (300 posts): requires ~2 hours with rate limit pauses
+
+**Free Tier Budget Planning:**
+- Gemini: 1M tokens/day ≈ sufficient for ~500+ post generations per day
+- Pollinations.ai: Unlimited (no quota)
+- Facebook: 200 calls/hour = 4,800 calls/day (more than enough)
 
 ## Security Considerations
 
 **API Key Management:**
-- All API keys (Facebook, OpenAI) stored in environment variables, never in code
+- Gemini API key (free) stored in environment variables, never in code
+- Facebook access token stored in environment variables, never in code
 - Support `.env` file for local development
 - Validate token permissions before starting bulk operations
 
 **Facebook Token Security:**
-- Use long-lived Page Access Tokens (60+ day expiry)
+- Use long-lived Page Access Tokens (60+ day expiry, free to generate)
 - Never log access tokens in output
 - Validate token has minimum required permissions: `pages_manage_posts`, `pages_read_engagement`
 
 **Content Safety:**
-- AI-generated content passes through validation to avoid financial advice violations
+- AI-generated content (from Gemini) passes through validation to avoid financial advice violations
 - No specific stock picks, guarantees of returns, or misleading claims
 - Disclaimer text can be optionally appended to posts
-- Image generation uses negative prompts to avoid inappropriate content
+- Image generation prompts are carefully constructed to avoid inappropriate content (Pollinations.ai has no negative prompt parameter, so positive prompt engineering is used)
 
 **Data Storage:**
 - Generated content stored locally in user-specified output directory
 - Manifest file tracks scheduled post IDs for management
 - No sensitive data stored beyond the current session unless explicitly saved
+- Gemini API key never logged or displayed in output
+
 
 ## Dependencies
 
-| Dependency | Purpose | Notes |
-|------------|---------|-------|
-| OpenAI API | Text content generation | GPT-4 or GPT-4o for high-quality finance content |
-| DALL-E 3 / Stable Diffusion | Image generation | DALL-E for quality, SD for cost efficiency |
-| Pillow (PIL) or Sharp | Image processing & text overlay | Local image manipulation |
-| Facebook Graph API v18+ | Post scheduling | Requires Page Access Token with publish permissions |
-| python-dotenv / dotenv | Environment variable management | API key loading |
-| Requests / Axios | HTTP client | API communication |
-| Schedule / node-cron | Optional: local scheduling fallback | If not using Facebook's native scheduling |
-| Click / Commander | CLI framework | Command-line argument parsing |
+| Dependency | Purpose | Cost |
+|------------|---------|------|
+| Google Gemini API | Text content generation (primary) | **FREE** (15 RPM, 1M tokens/day) |
+| Groq API | Text content generation (fallback) | **FREE** (Llama 3.1/Mixtral models) |
+| Pollinations.ai | Image generation | **FREE** (no API key needed, unlimited) |
+| Pillow (PIL) | Image processing & text overlay | **FREE** (open-source) |
+| Facebook Graph API v18+ | Post scheduling | **FREE** |
+| python-dotenv | Environment variable management | **FREE** (open-source) |
+| Requests | HTTP client for API communication | **FREE** (open-source) |
+| Click | CLI framework for argument parsing | **FREE** (open-source) |
+| Pydantic | Data validation and settings | **FREE** (open-source) |
+
+**Total Monthly Cost: $0**
 
 ## Configuration
 
 ### Environment Variables
 
 ```pascal
-// Required
-FB_PAGE_ID           // Facebook Page ID
-FB_ACCESS_TOKEN      // Long-lived Page Access Token
-OPENAI_API_KEY       // OpenAI API Key
+// Required (ALL FREE)
+FB_PAGE_ID           // Facebook Page ID (free)
+FB_ACCESS_TOKEN      // Long-lived Page Access Token (free from Facebook Developer portal)
+GEMINI_API_KEY       // Google AI Studio key (FREE — https://aistudio.google.com)
 
-// Optional
-IMAGE_API            // "dalle" or "stable_diffusion" (default: dalle)
-SD_API_KEY           // Stable Diffusion API key (if using SD)
+// Optional (no paid keys needed!)
+GROQ_API_KEY         // Groq free tier key (optional fallback — https://console.groq.com)
 POSTS_PER_DAY        // Override default posts per day (default: 10)
 OUTPUT_DIR           // Override default output directory
 TIMEZONE             // Target timezone (default: America/New_York)
 ```
+
+### How to Get Free API Keys
+
+| Service | Where to Get Key | Cost | Limits |
+|---------|-----------------|------|--------|
+| Google Gemini | https://aistudio.google.com | FREE | 15 RPM, 1M tokens/day |
+| Groq (fallback) | https://console.groq.com | FREE | 30 RPM, 14.4K tokens/min |
+| Pollinations.ai | No key needed! | FREE | Unlimited |
+| Facebook Graph API | https://developers.facebook.com | FREE | 200 calls/hour |
 
 ### Optimal Posting Schedule (US Audience)
 
@@ -1106,3 +1239,17 @@ TIMEZONE             // Target timezone (default: America/New_York)
 | 11:30 AM - 1:30 PM | Highest (Lunch break) | 3-4 posts |
 | 5:00 PM - 7:00 PM | High (After work) | 2-3 posts |
 | 8:00 PM - 10:00 PM | Medium (Evening scroll) | 1-2 posts |
+
+### Free Tier Rate Limit Strategy
+
+To maximize throughput within free tier constraints:
+
+1. **Gemini (15 RPM)**: Space text generation calls ~4 seconds apart
+2. **Groq fallback (30 RPM)**: Use when Gemini is rate-limited for faster recovery
+3. **Pollinations.ai (unlimited)**: No throttling needed, but add 60s timeout per request
+4. **Facebook (200/hour)**: Space scheduling calls ~1 second apart
+
+**Estimated generation times:**
+- 1 week (70 posts): ~45-90 minutes
+- 1 month (270 posts): ~3-5 hours
+- All at $0 cost
