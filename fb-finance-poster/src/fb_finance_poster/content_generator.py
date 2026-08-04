@@ -1,7 +1,7 @@
 """Content generation: topic selection, Gemini/Groq text generation, validation.
 
 - ``TopicSelector`` picks unique, category-diverse topics (7-day dedup window).
-- ``ContentGenerator`` calls Google Gemini (free tier, ``gemini-1.5-flash``),
+- ``ContentGenerator`` calls Google Gemini (free tier, ``gemini-flash-latest``),
   falling back to Groq (``llama-3.1-70b-versatile``) on rate limits.
 - ``ContentValidator`` rejects specific stock picks, return guarantees, and
   other misleading financial claims, triggering regeneration.
@@ -515,9 +515,9 @@ class QuotaExhaustedError(RuntimeError):
 
 
 class GeminiClient:  # pragma: no cover - exercised only with real network/keys
-    """Thin wrapper around google-generativeai (``gemini-1.5-flash``)."""
+    """Thin wrapper around google-generativeai (``gemini-flash-latest``)."""
 
-    def __init__(self, api_key: str, model: str = "gemini-1.5-flash") -> None:
+    def __init__(self, api_key: str, model: str = "gemini-flash-latest") -> None:
         import google.generativeai as genai
 
         genai.configure(api_key=api_key)
@@ -528,7 +528,7 @@ class GeminiClient:  # pragma: no cover - exercised only with real network/keys
         try:
             response = self._model.generate_content(
                 f"{system_prompt}\n\n{user_prompt}",
-                generation_config={"temperature": 0.8, "max_output_tokens": 400},
+                generation_config={"temperature": 0.8, "max_output_tokens": 2048, "response_mime_type": "application/json"},
             )
         except Exception as exc:  # noqa: BLE001
             message = str(exc).lower()
