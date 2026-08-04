@@ -1,27 +1,39 @@
 [build-system]
-requires = ["setuptools>=65.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "fb-finance-poster"
-version = "1.0.0"
-description = "Automated Facebook Finance Post Generator & Scheduler (FREE - $0/month)"
-requires-python = ">=3.9"
+version = "0.1.0"
+description = "Automated finance content generator and Facebook scheduler — runs entirely on free-tier services ($0/month)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Facebook Finance Auto-Poster" }]
+keywords = ["facebook", "finance", "automation", "gemini", "pollinations", "free"]
+
 dependencies = [
-    "click>=8.0",
-    "google-generativeai>=0.3.0",
-    "groq>=0.4.0",
+    "click>=8.1",
+    "google-generativeai>=0.7",
+    "groq>=0.9",
     "pillow>=10.0",
-    "requests>=2.28",
+    "requests>=2.31",
     "python-dotenv>=1.0",
-    "pydantic>=2.0",
+    "pydantic>=2.5",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "hypothesis", "pytest-mock"]
+dev = [
+    "pytest>=7.4",
+    "hypothesis>=6.90",
+]
 
 [project.scripts]
-fb-poster = "fb_finance_poster.cli:cli"
+fb-finance-poster = "fb_finance_poster.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
