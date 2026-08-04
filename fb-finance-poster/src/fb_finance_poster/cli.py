@@ -1,301 +1,327 @@
-"""Click CLI for the Facebook Finance Auto-Poster."""
+"""Click-based command-line interface for the Facebook Finance Auto-Poster.
+
+Commands:
+    run      Generate and schedule a week/month of finance posts.
+    preview  Generate a few sample posts locally (no scheduling).
+    status   Show the state of a previous run's scheduled posts.
+    cancel   Cancel scheduled Facebook posts by id.
+    resume   Continue an interrupted run from locally saved content.
+
+Secrets are only ever read from the environment / .env — never printed.
+"""
 
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional
 
 import click
 
-from .config import load_config, mask_secret, validate_config
-from .models import Duration, RunConfig
+from . import __version__
+from .config import build_run_config, configure_logging
+from .content_generator import (
+    ContentGenerator,
+    GeminiClient,
+    GroqClient,
+)
+from .image_generator import ImageGenerator
+from .models import Category, Duration, RunConfig, days_in_duration
+from .orchestrator import MANIFEST_FILE, Orchestrator
+from .rate_limiter import FreeTierRateLimiter
+from .scheduler import (
+    FacebookGraphClient,
+    OptimalTimeCalculator,
+    PostScheduler,
+)
+from .text_overlay import TextOverlayEngine
+
+REQUIRED_FB_PERMISSIONS = ("pages_manage_posts", "pages_read_engagement")
+
+
+def _echo(msg: str) -> None:
+    click.echo(msg)
+
+
+def _estimate_time(total_posts: int) -> str:
+    """Human-readable estimate based on the Gemini 15 RPM free-tier limit."""
+    low = max(1, round(total_posts * 0.7))
+    high = max(2, round(total_posts * 1.3))
+    return f"~{low}-{high} minutes (limited by free-tier rate limits)"
+
+
+def _build_text_client(config: RunConfig):
+    """Choose a text-generation client based on available free keys."""
+    if config.gemini_api_key:
+        return GeminiClient(config.gemini_api_key), (
+            GroqClient(config.groq_api_key) if config.groq_api_key else None
+        )
+    if config.groq_api_key:
+        # Gemini key absent: use Groq as the primary client.
+        return GroqClient(config.groq_api_key), None
+    return None, None
+
+
+def _build_orchestrator(
+    config: RunConfig, *, with_scheduler: bool
+) -> Orchestrator:
+    groq_available = bool(config.groq_api_key)
+    rate_limiter = FreeTierRateLimiter(groq_available=groq_available)
+
+    gemini_client, groq_client = _build_text_client(config)
+    if gemini_client is None and groq_client is None:
+        raise click.ClickException(
+            "No text-generation API key found. Set GEMINI_API_KEY "
+            "(free from https://aistudio.google.com) or GROQ_API_KEY in your "
+            ".env file."
+        )
+
+    # If Gemini is primary, groq_client is the fallback; if Groq is primary
+    # (no Gemini key), route it through the gemini_client slot.
+    from .content_generator import GeminiClient as _GC
+
+    if isinstance(gemini_client, _GC):
+        content_generator = ContentGenerator(
+            rate_limiter=rate_limiter,
+            gemini_client=gemini_client,
+            groq_client=groq_client,
+        )
+    else:
+        content_generator = ContentGenerator(
+            rate_limiter=rate_limiter,
+            gemini_client=None,
+            groq_client=gemini_client,  # Groq acting as sole provider
+        )
+
+    image_generator = ImageGenerator(config.output_path())
+    overlay_engine = TextOverlayEngine()
+
+    scheduler = None
+    if with_scheduler and not config.dry_run:
+        scheduler = PostScheduler(
+            client=FacebookGraphClient(),
+            page_id=config.page_id,
+            access_token=config.access_token,
+        )
+
+    return Orchestrator(
+        config,
+        rate_limiter=rate_limiter,
+        content_generator=content_generator,
+        image_generator=image_generator,
+        overlay_engine=overlay_engine,
+        scheduler=scheduler,
+        time_calculator=OptimalTimeCalculator(timezone=config.timezone),
+        progress_fn=_echo,
+    )
+
+
+def validate_fb_permissions(client, token: str) -> None:
+    """Raise a ClickException if the token lacks required FB permissions."""
+    try:
+        data = client.debug_token(token)
+    except Exception as exc:  # noqa: BLE001
+        raise click.ClickException(
+            f"Could not validate Facebook token permissions: {exc}"
+        ) from exc
+    scopes = set(data.get("scopes", []))
+    missing = [p for p in REQUIRED_FB_PERMISSIONS if p not in scopes]
+    if missing:
+        raise click.ClickException(
+            "Facebook token is missing required permissions: "
+            + ", ".join(missing)
+            + ". Grant pages_manage_posts and pages_read_engagement."
+        )
+
+
+# ---------------------------------------------------------------------------
+# CLI group
+# ---------------------------------------------------------------------------
 
 
 @click.group()
-@click.version_option(version="1.0.0", prog_name="fb-poster")
-def cli() -> None:
-    """Facebook Finance Auto-Poster - FREE automated content pipeline ($0/month).
-
-    Generate, design, and schedule finance posts to your Facebook page
-    using Google Gemini (free), Pollinations.ai (free), Pillow (free),
-    and the Facebook Graph API (free).
-    """
-    pass
+@click.version_option(__version__, prog_name="fb-finance-poster")
+@click.option("--verbose", is_flag=True, help="Enable verbose logging.")
+def cli(verbose: bool) -> None:
+    """Facebook Finance Auto-Poster — generate & schedule posts for $0."""
+    configure_logging(logging.DEBUG if verbose else logging.INFO)
 
 
 @cli.command()
 @click.option(
     "--duration",
-    type=click.Choice(["week", "month"]),
-    default="week",
-    help="Scheduling duration (week=7 days, month=30 days).",
+    type=click.Choice([d.value for d in Duration]),
+    default=Duration.ONE_WEEK.value,
+    help="How much content to generate.",
 )
 @click.option(
-    "--posts-per-day",
-    type=int,
-    default=None,
-    help="Posts per day (1-15, default from env or 10).",
+    "--posts-per-day", type=int, default=None, help="Posts per day (1-15)."
 )
+@click.option("--page-id", default=None, help="Facebook Page ID.")
 @click.option(
-    "--dry-run",
-    is_flag=True,
-    default=False,
-    help="Generate content without scheduling to Facebook.",
+    "--dry-run", is_flag=True, help="Generate content/images without scheduling."
 )
-@click.option(
-    "--output-dir",
-    type=str,
-    default=None,
-    help="Output directory for generated content.",
-)
-@click.option(
-    "--env-file",
-    type=str,
-    default=None,
-    help="Path to .env file with API keys.",
-)
+@click.option("--output-dir", default=None, help="Output directory.")
 @click.option(
     "--categories",
-    type=str,
     default=None,
-    help="Comma-separated categories (e.g., TIPS,EDUCATIONAL,MOTIVATIONAL).",
+    help="Comma-separated categories (default: all).",
 )
 def run(
     duration: str,
     posts_per_day: Optional[int],
+    page_id: Optional[str],
     dry_run: bool,
     output_dir: Optional[str],
-    env_file: Optional[str],
     categories: Optional[str],
 ) -> None:
-    """Generate and schedule finance posts in bulk.
-
-    Examples:
-        fb-poster run --duration week --posts-per-day 10
-        fb-poster run --duration month --dry-run
-        fb-poster run --duration week --posts-per-day 8 --categories TIPS,EDUCATIONAL
-    """
-    # Parse categories
-    cat_list = None
-    if categories:
-        cat_list = [c.strip() for c in categories.split(",")]
-
-    # Load config
-    config = load_config(
-        env_file=env_file,
-        duration=duration,
-        posts_per_day=posts_per_day,
-        dry_run=dry_run,
-        output_dir=output_dir,
-        categories=cat_list,
-    )
-
-    # Validate
-    errors = validate_config(config)
-    if errors:
-        click.echo("\nConfiguration errors:")
-        for error in errors:
-            click.echo(f"  - {error}")
-        click.echo("\nPlease fix the above issues and try again.")
-        click.echo("All API keys are FREE:")
-        click.echo("  - Gemini: https://aistudio.google.com")
-        click.echo("  - Groq (optional): https://console.groq.com")
-        click.echo("  - Facebook: https://developers.facebook.com")
-        sys.exit(1)
-
-    # Display config (masked secrets)
-    click.echo("\nConfiguration:")
-    click.echo(f"  Duration:      {config.duration.value}")
-    click.echo(f"  Posts/day:     {config.posts_per_day}")
-    click.echo(f"  Dry run:       {config.dry_run}")
-    click.echo(f"  Output:        {config.output_dir}")
-    click.echo(f"  Gemini key:    {mask_secret(config.gemini_api_key)}")
-    click.echo(f"  Groq key:      {mask_secret(config.groq_api_key)}")
-    click.echo(f"  FB Page ID:    {mask_secret(config.page_id)}")
-    click.echo(f"  Categories:    {len(config.content_categories)}")
-    click.echo(f"  Total cost:    $0")
-
-    # Estimate time
-    from .orchestrator import get_total_days
-    total_days = get_total_days(config.duration)
-    total_posts = total_days * config.posts_per_day
-    est_minutes = max(1, (total_posts * 5) // 60)
-    click.echo(f"\n  Estimated: {total_posts} posts in ~{est_minutes} minutes at $0 cost")
-
-    if not dry_run:
-        click.confirm("\n  Proceed with generation and scheduling?", abort=True)
-
-    # Run pipeline
-    from .orchestrator import Orchestrator
-    orchestrator = Orchestrator(config)
-    result = orchestrator.run()
-
-    if result.total_failed > 0:
-        sys.exit(1)
-
-
-@cli.command()
-@click.option("--count", type=int, default=3, help="Number of sample posts to generate.")
-@click.option("--env-file", type=str, default=None, help="Path to .env file.")
-def preview(count: int, env_file: Optional[str]) -> None:
-    """Generate sample posts without scheduling (preview mode).
-
-    Examples:
-        fb-poster preview --count 5
-        fb-poster preview
-    """
-    config = load_config(env_file=env_file, dry_run=True, posts_per_day=count)
-    config.duration = Duration.ONE_WEEK  # Minimal duration
-    config.posts_per_day = max(1, min(count, 15))
-
-    errors = validate_config(config)
-    if errors:
-        click.echo("Configuration errors:")
-        for error in errors:
-            click.echo(f"  - {error}")
-        sys.exit(1)
-
-    click.echo(f"\nGenerating {count} preview posts (not scheduling)...\n")
-
-    from .orchestrator import Orchestrator
-    # Override to just generate 'count' posts
-    config.dry_run = True
-    orchestrator = Orchestrator(config)
-
-    posts = orchestrator._generate_all_posts(count, 1)
-
-    click.echo(f"\n{'='*60}")
-    click.echo(f"  PREVIEW: {len(posts)} posts generated")
-    click.echo(f"{'='*60}\n")
-
-    for i, post in enumerate(posts, 1):
-        click.echo(f"  Post {i}:")
-        click.echo(f"    Category: {post.content.category.value}")
-        click.echo(f"    Topic:    {post.content.topic}")
-        click.echo(f"    Hook:     \"{post.content.hook_text}\"")
-        click.echo(f"    Body:     {post.content.body_text[:100]}...")
-        click.echo(f"    Hashtags: {', '.join('#' + h for h in post.content.hashtags)}")
-        click.echo(f"    Image:    {post.image_path}")
-        click.echo("")
-
-    click.echo(f"  Total cost: $0")
-
-
-@cli.command()
-@click.option("--output-dir", type=str, default="./output", help="Output directory to check.")
-def status(output_dir: str) -> None:
-    """Display the current state of scheduled posts from manifest.
-
-    Examples:
-        fb-poster status
-        fb-poster status --output-dir ./my_output
-    """
-    manifest_path = Path(output_dir) / "manifest.json"
-
-    if not manifest_path.exists():
-        click.echo(f"  No manifest found at {manifest_path}")
-        click.echo("  Run 'fb-poster run' first to generate content.")
-        return
-
+    """Generate and schedule a full week or month of finance posts."""
     try:
-        data = json.loads(manifest_path.read_text())
-    except (json.JSONDecodeError, OSError) as e:
-        click.echo(f"  Error reading manifest: {e}")
-        return
+        config = build_run_config(
+            duration=duration,
+            posts_per_day=posts_per_day,
+            page_id=page_id,
+            dry_run=dry_run,
+            output_dir=output_dir,
+            categories=categories,
+        )
+    except (ValueError, Exception) as exc:  # noqa: BLE001
+        raise click.ClickException(str(exc))
 
-    posts = data.get("posts", [])
-    config_info = data.get("config", {})
+    total = days_in_duration(config.duration) * config.posts_per_day
+    _echo(f"Planning {total} posts ({config.duration.value}, "
+          f"{config.posts_per_day}/day).")
+    _echo(f"Estimated generation time: {_estimate_time(total)}")
+    _echo("Total cost: $0 (all services are free).")
 
-    click.echo(f"\n{'='*60}")
-    click.echo(f"  SCHEDULE STATUS")
-    click.echo(f"{'='*60}")
-    click.echo(f"  Generated at:  {data.get('generated_at', 'unknown')}")
-    click.echo(f"  Duration:      {config_info.get('duration', 'unknown')}")
-    click.echo(f"  Posts/day:     {config_info.get('posts_per_day', 'unknown')}")
-    click.echo(f"  Total cost:    {config_info.get('total_cost', '$0')}")
-    click.echo(f"  Total posts:   {len(posts)}")
+    orchestrator = _build_orchestrator(config, with_scheduler=not dry_run)
 
-    # Count by status
-    from collections import Counter
-    status_counts = Counter(p.get("status", "UNKNOWN") for p in posts)
-    click.echo(f"\n  Status breakdown:")
-    for s, count in sorted(status_counts.items()):
-        click.echo(f"    {s}: {count}")
+    # Validate Facebook permissions before scheduling (live runs only).
+    if not dry_run and orchestrator.scheduler is not None:
+        validate_fb_permissions(
+            orchestrator.scheduler.client, config.access_token
+        )
 
-    # Show next few scheduled posts
-    scheduled = [p for p in posts if p.get("status") == "SCHEDULED"]
-    if scheduled:
-        click.echo(f"\n  Next scheduled posts:")
-        for p in sorted(scheduled, key=lambda x: x.get("scheduled_time", ""))[:5]:
-            click.echo(f"    {p.get('scheduled_time', '?')} - \"{p.get('hook_text', '?')}\"")
-
-    click.echo(f"\n{'='*60}\n")
+    result = orchestrator.run()
+    if result.failed and not result.dry_run:
+        sys.exit(1)
 
 
 @cli.command()
-@click.argument("post_ids", nargs=-1, required=True)
-@click.option("--env-file", type=str, default=None, help="Path to .env file.")
-def cancel(post_ids: tuple, env_file: Optional[str]) -> None:
-    """Cancel scheduled posts on Facebook by their IDs.
+@click.option("--count", type=int, default=3, help="Number of sample posts.")
+@click.option("--output-dir", default=None, help="Output directory.")
+@click.option("--categories", default=None, help="Comma-separated categories.")
+def preview(count: int, output_dir: Optional[str], categories: Optional[str]) -> None:
+    """Generate a few sample posts locally without scheduling."""
+    if count < 1:
+        raise click.ClickException("--count must be at least 1")
 
-    Examples:
-        fb-poster cancel POST_ID_1 POST_ID_2
-    """
-    config = load_config(env_file=env_file)
+    # Preview always runs as a dry run.
+    config = build_run_config(
+        duration=Duration.ONE_WEEK.value,
+        posts_per_day=min(count, 15),
+        dry_run=True,
+        output_dir=output_dir,
+        categories=categories,
+    )
+    orchestrator = _build_orchestrator(config, with_scheduler=False)
 
-    if not config.page_id or not config.access_token:
-        click.echo("  Error: FB_PAGE_ID and FB_ACCESS_TOKEN required for cancellation.")
-        sys.exit(1)
+    _echo(f"Generating {count} preview post(s)...")
+    # Generate exactly `count` posts by iterating the pipeline directly.
+    from .content_generator import ContentGenerationError
 
-    from .scheduler import PostScheduler
-    scheduler = PostScheduler(page_id=config.page_id, access_token=config.access_token)
-
-    click.echo(f"\n  Cancelling {len(post_ids)} post(s)...\n")
-
-    cancelled = 0
-    for pid in post_ids:
-        success = scheduler.cancel_post(pid)
-        if success:
-            click.echo(f"    Cancelled: {pid}")
-            cancelled += 1
-        else:
-            click.echo(f"    Failed:    {pid}")
-
-    click.echo(f"\n  Result: {cancelled}/{len(post_ids)} cancelled successfully.\n")
+    shown = 0
+    while shown < count:
+        topic = orchestrator.topic_selector.select()
+        try:
+            content = orchestrator.content_generator.generate(topic)
+        except ContentGenerationError as exc:
+            _echo(f"  (skipped a post: {exc})")
+            continue
+        shown += 1
+        _echo("-" * 40)
+        _echo(f"  [{content.category.value}] {content.topic}")
+        _echo(f"  HOOK : {content.hook_text}")
+        _echo(f"  BODY : {content.body_text}")
+        _echo(f"  TAGS : {' '.join(content.hashtags)}")
+    _echo("-" * 40)
+    _echo("Total cost: $0")
 
 
 @cli.command()
-@click.option("--output-dir", type=str, default="./output", help="Output directory with progress.")
-@click.option("--env-file", type=str, default=None, help="Path to .env file.")
-def resume(output_dir: str, env_file: Optional[str]) -> None:
-    """Resume a previously interrupted generation/scheduling run.
+@click.option("--output-dir", default="./output", help="Output directory.")
+def status(output_dir: str) -> None:
+    """Display the state of scheduled posts from a previous run."""
+    manifest_path = Path(output_dir) / MANIFEST_FILE
+    if not manifest_path.exists():
+        raise click.ClickException(
+            f"No manifest found at {manifest_path}. Run a generation first."
+        )
+    manifest = json.loads(manifest_path.read_text())
+    _echo(f"Run: {manifest.get('duration')} "
+          f"({manifest.get('posts_per_day')}/day)")
+    _echo(f"  Generated : {manifest.get('generated')}")
+    _echo(f"  Scheduled : {manifest.get('scheduled')}")
+    _echo(f"  Failed    : {manifest.get('failed')}")
+    _echo(f"  Cost      : {manifest.get('total_cost', '$0')}")
+    _echo("")
+    counts: dict = {}
+    for post in manifest.get("posts", []):
+        counts[post["status"]] = counts.get(post["status"], 0) + 1
+    for stat, n in sorted(counts.items()):
+        _echo(f"  {stat:<10}: {n}")
 
-    Reads progress from the output directory and continues where it left off.
 
-    Examples:
-        fb-poster resume
-        fb-poster resume --output-dir ./my_output
-    """
-    config = load_config(env_file=env_file, output_dir=output_dir)
+@cli.command()
+@click.option(
+    "--post-ids",
+    required=True,
+    help="Comma-separated Facebook post IDs to cancel.",
+)
+@click.option("--page-id", default=None, help="Facebook Page ID.")
+def cancel(post_ids: str, page_id: Optional[str]) -> None:
+    """Cancel scheduled Facebook posts by id."""
+    ids: List[str] = [p.strip() for p in post_ids.split(",") if p.strip()]
+    if not ids:
+        raise click.ClickException("No post IDs provided.")
+    config = build_run_config(page_id=page_id)
+    if not config.access_token:
+        raise click.ClickException("FB_ACCESS_TOKEN is required to cancel posts.")
+    scheduler = PostScheduler(
+        client=FacebookGraphClient(),
+        page_id=config.page_id,
+        access_token=config.access_token,
+    )
+    results = scheduler.cancel(ids)
+    for pid, outcome in results.items():
+        _echo(f"  {pid}: {outcome}")
 
-    errors = validate_config(config)
-    if errors:
-        click.echo("Configuration errors:")
-        for error in errors:
-            click.echo(f"  - {error}")
+
+@cli.command()
+@click.option("--output-dir", default="./output", help="Output directory.")
+@click.option("--page-id", default=None, help="Facebook Page ID.")
+@click.option("--dry-run", is_flag=True, help="Resume in dry-run mode.")
+def resume(output_dir: str, page_id: Optional[str], dry_run: bool) -> None:
+    """Resume an interrupted run using locally saved content."""
+    config = build_run_config(
+        page_id=page_id, output_dir=output_dir, dry_run=dry_run
+    )
+    orchestrator = _build_orchestrator(config, with_scheduler=not dry_run)
+    if not dry_run and orchestrator.scheduler is not None:
+        validate_fb_permissions(
+            orchestrator.scheduler.client, config.access_token
+        )
+    _echo("Resuming previous run...")
+    result = orchestrator.run(resume=True)
+    if result.failed and not result.dry_run:
         sys.exit(1)
 
-    click.echo(f"\n  Resuming from {output_dir}...")
 
-    from .orchestrator import resume_from_progress
-    result = resume_from_progress(config)
-
-    if result is None:
-        click.echo("  No progress to resume. Use 'fb-poster run' to start fresh.")
-        sys.exit(1)
+def main() -> None:  # pragma: no cover
+    cli()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     cli()

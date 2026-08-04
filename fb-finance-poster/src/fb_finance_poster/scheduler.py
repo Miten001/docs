@@ -1,387 +1,346 @@
-"""Facebook Graph API post scheduling (FREE - 200 calls/hour)."""
+"""Optimal posting-time calculation and Facebook Graph API scheduling."""
 
 from __future__ import annotations
 
+import logging
 import random
 import time
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Optional
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta
+from typing import Callable, List, Optional
 
-import click
-import requests
+try:  # Python 3.9+ stdlib
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover
+    ZoneInfo = None  # type: ignore
 
-from .models import PostStatus, SchedulablePost, ScheduleConfig, ScheduleResult
+from .models import (
+    MAX_SCHEDULE_LEAD,
+    MIN_SCHEDULE_LEAD,
+    PostStatus,
+    SchedulablePost,
+)
+
+logger = logging.getLogger("fb_finance_poster")
+
+MIN_GAP_MINUTES = 30
+FB_API_CALL_PAUSE_SECONDS = 1.0
+MAX_SCHEDULE_RETRIES = 3
+GRAPH_API_BASE = "https://graph.facebook.com/v18.0"
+
+
+@dataclass(frozen=True)
+class EngagementWindow:
+    name: str
+    start_minute: int  # minutes from midnight (EST)
+    end_minute: int
+    weight: float
+
+    @property
+    def duration(self) -> int:
+        return self.end_minute - self.start_minute
+
+
+# Four US engagement windows (EST). Times expressed as minutes from midnight.
+PRIME_WINDOWS: List[EngagementWindow] = [
+    EngagementWindow("Morning", 7 * 60, 9 * 60, 0.8),        # 7:00-9:00
+    EngagementWindow("Lunch", 11 * 60 + 30, 13 * 60 + 30, 1.0),  # 11:30-13:30
+    EngagementWindow("After-work", 17 * 60, 19 * 60, 0.9),  # 17:00-19:00
+    EngagementWindow("Evening", 20 * 60, 22 * 60, 0.7),     # 20:00-22:00
+]
+
+
+def _largest_remainder_allocation(
+    total: int, weights: List[float]
+) -> List[int]:
+    """Allocate ``total`` items proportional to ``weights`` (sum == total)."""
+    weight_sum = sum(weights)
+    exact = [total * w / weight_sum for w in weights]
+    floors = [int(x) for x in exact]
+    remainder = total - sum(floors)
+    # Distribute the remaining items to the largest fractional parts.
+    fractional = sorted(
+        range(len(weights)), key=lambda i: exact[i] - floors[i], reverse=True
+    )
+    for i in range(remainder):
+        floors[fractional[i % len(floors)]] += 1
+    return floors
+
+
+def _capacity(window: EngagementWindow) -> int:
+    """Max posts that fit in a window with the minimum gap."""
+    return window.duration // MIN_GAP_MINUTES + 1
+
+
+def _rebalance_capacity(
+    allocation: List[int], windows: List[EngagementWindow]
+) -> List[int]:
+    """Move overflow from over-capacity windows to windows with room."""
+    allocation = list(allocation)
+    caps = [_capacity(w) for w in windows]
+    for i in range(len(allocation)):
+        while allocation[i] > caps[i]:
+            # Find another window with spare capacity (prefer adjacent).
+            candidates = sorted(
+                (j for j in range(len(allocation)) if allocation[j] < caps[j]),
+                key=lambda j: (abs(j - i), -windows[j].weight),
+            )
+            if not candidates:
+                # No room anywhere; leave as-is (extremely high posts/day).
+                break
+            allocation[i] -= 1
+            allocation[candidates[0]] += 1
+    return allocation
 
 
 class OptimalTimeCalculator:
-    """Calculates optimal posting times for US audience engagement.
+    """Distributes posts across US engagement windows with randomized times."""
 
-    Engagement Windows (EST):
-    - Morning: 7:00-9:00 AM (weight 0.8)
-    - Lunch: 11:30 AM-1:30 PM (weight 1.0 - highest)
-    - After-work: 5:00-7:00 PM (weight 0.9)
-    - Evening: 8:00-10:00 PM (weight 0.7)
-    """
-
-    # Engagement windows: (start_hour, start_min, end_hour, end_min, weight)
-    WINDOWS = [
-        (7, 0, 9, 0, 0.8),     # Morning commute
-        (11, 30, 13, 30, 1.0),  # Lunch break (highest)
-        (17, 0, 19, 0, 0.9),   # After work
-        (20, 0, 22, 0, 0.7),   # Evening scroll
-    ]
-
-    MIN_GAP_MINUTES = 30
-
-    def calculate_times(
+    def __init__(
         self,
-        start_date: datetime,
-        total_days: int,
-        posts_per_day: int,
-    ) -> list[datetime]:
-        """Calculate optimal posting times across all days.
+        *,
+        timezone: str = "America/New_York",
+        rng: Optional[random.Random] = None,
+        windows: Optional[List[EngagementWindow]] = None,
+    ) -> None:
+        self.timezone = timezone
+        self._rng = rng or random.Random()
+        self.windows = windows or PRIME_WINDOWS
+        self._tz = ZoneInfo(timezone) if ZoneInfo is not None else None
 
-        Args:
-            start_date: First day of scheduling.
-            total_days: Number of days to schedule.
-            posts_per_day: Posts per day (1-15).
-
-        Returns:
-            List of datetime objects for all scheduled posts.
-        """
-        all_times: list[datetime] = []
-
-        for day_offset in range(total_days):
-            current_date = start_date + timedelta(days=day_offset)
-            day_times = self._calculate_day_times(current_date, posts_per_day)
-            all_times.extend(day_times)
-
-        return all_times
-
-    def _calculate_day_times(self, date: datetime, posts_per_day: int) -> list[datetime]:
-        """Calculate posting times for a single day."""
-        # Distribute posts across windows proportionally by weight
-        slots = self._distribute_across_windows(posts_per_day)
-
-        day_times: list[datetime] = []
-
-        for window_idx, count in slots.items():
-            start_h, start_m, end_h, end_m, _ = self.WINDOWS[window_idx]
-
-            # Calculate window duration in minutes
-            window_start_min = start_h * 60 + start_m
-            window_end_min = end_h * 60 + end_m
-            window_duration = window_end_min - window_start_min
-
-            for i in range(count):
-                # Add random offset within window, spaced out
-                segment = window_duration // max(count, 1)
-                min_offset = i * segment
-                max_offset = min((i + 1) * segment, window_duration - 1)
-
-                random_offset = random.randint(min_offset, max_offset)
-                total_minutes = window_start_min + random_offset
-
-                hour = total_minutes // 60
-                minute = total_minutes % 60
-
-                post_time = date.replace(
-                    hour=hour, minute=minute, second=0, microsecond=0
-                )
-
-                # Ensure time is in the future
-                now = datetime.now(timezone.utc)
-                if post_time.tzinfo is None:
-                    # Assume UTC for scheduling
-                    post_time = post_time.replace(tzinfo=timezone.utc)
-
-                if post_time <= now:
-                    post_time = now + timedelta(minutes=15)
-
-                day_times.append(post_time)
-
-        # Sort chronologically
-        day_times.sort()
-
-        # Enforce minimum 30-minute gap
-        day_times = self._enforce_min_gap(day_times)
-
-        return day_times
-
-    def _distribute_across_windows(self, posts_per_day: int) -> dict[int, int]:
-        """Distribute posts proportionally across engagement windows.
-
-        Returns:
-            Dict mapping window_index -> number_of_posts.
-        """
-        total_weight = sum(w[4] for w in self.WINDOWS)
-        distribution: dict[int, int] = {}
-        allocated = 0
-
-        # Allocate proportionally
-        for i, window in enumerate(self.WINDOWS):
-            weight = window[4]
-            share = (weight / total_weight) * posts_per_day
-            count = int(share)
-            distribution[i] = count
-            allocated += count
-
-        # Distribute remaining posts to highest-weight windows
-        remaining = posts_per_day - allocated
-        sorted_windows = sorted(
-            range(len(self.WINDOWS)),
-            key=lambda i: self.WINDOWS[i][4],
-            reverse=True,
+    def _day_times(self, day: date, posts_per_day: int) -> List[datetime]:
+        allocation = _largest_remainder_allocation(
+            posts_per_day, [w.weight for w in self.windows]
         )
+        allocation = _rebalance_capacity(allocation, self.windows)
 
-        for i in range(remaining):
-            idx = sorted_windows[i % len(sorted_windows)]
-            distribution[idx] += 1
+        day_times: List[datetime] = []
+        for window, count in zip(self.windows, allocation):
+            if count <= 0:
+                continue
+            # Space posts by at least MIN_GAP; randomize the block start.
+            slack = window.duration - (count - 1) * MIN_GAP_MINUTES
+            offset = self._rng.randint(0, max(0, slack))
+            for i in range(count):
+                minute = window.start_minute + offset + i * MIN_GAP_MINUTES
+                minute = min(minute, window.end_minute)  # clamp to window
+                day_times.append(self._make_datetime(day, minute))
 
-        return distribution
+        day_times.sort()
+        return self._enforce_min_gap(day_times)
 
-    def _enforce_min_gap(self, times: list[datetime]) -> list[datetime]:
-        """Ensure minimum 30-minute gap between consecutive posts."""
-        if len(times) <= 1:
+    def _make_datetime(self, day: date, minute_of_day: int) -> datetime:
+        hours, minutes = divmod(minute_of_day, 60)
+        naive = datetime(day.year, day.month, day.day, hours, minutes)
+        if self._tz is not None:
+            return naive.replace(tzinfo=self._tz)
+        return naive
+
+    @staticmethod
+    def _enforce_min_gap(times: List[datetime]) -> List[datetime]:
+        if not times:
             return times
-
         result = [times[0]]
-        for i in range(1, len(times)):
+        for t in times[1:]:
             prev = result[-1]
-            current = times[i]
-            gap = (current - prev).total_seconds() / 60
-
-            if gap < self.MIN_GAP_MINUTES:
-                # Push forward
-                current = prev + timedelta(minutes=self.MIN_GAP_MINUTES)
-
-            result.append(current)
-
+            if (t - prev) < timedelta(minutes=MIN_GAP_MINUTES):
+                t = prev + timedelta(minutes=MIN_GAP_MINUTES)
+            result.append(t)
         return result
+
+    def calculate(
+        self, start_date: date, total_days: int, posts_per_day: int
+    ) -> List[datetime]:
+        """Return ``total_days * posts_per_day`` scheduled datetimes."""
+        times: List[datetime] = []
+        for day_offset in range(total_days):
+            day = start_date + timedelta(days=day_offset)
+            times.extend(self._day_times(day, posts_per_day))
+        return times
+
+
+# ---------------------------------------------------------------------------
+# Facebook scheduling
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ScheduleResult:
+    total: int = 0
+    scheduled: int = 0
+    failed: int = 0
+    failures: List[dict] = field(default_factory=list)
+
+
+class FacebookTokenError(RuntimeError):
+    """Raised when the Facebook token is expired/invalid (HTTP 401)."""
+
+
+class FacebookRateLimitError(RuntimeError):
+    """Raised when Facebook returns HTTP 429."""
 
 
 class PostScheduler:
-    """Schedules posts via the Facebook Graph API (FREE).
+    """Schedules posts to Facebook via the Graph API with retries + backoff.
 
-    Features:
-    - Upload image + message with scheduled_publish_time
-    - Rate limit handling (pause on HTTP 429)
-    - Retry with exponential backoff (2s, 4s, 8s)
-    - 1-second pause between API calls
-    - Validates: scheduled_time 10min-75days in future
+    ``client`` is an injectable object exposing
+    ``schedule_photo(page_id, image_path, message, scheduled_time, token) -> str``
+    (returning the Facebook post id) and ``cancel(post_id, token) -> bool``.
     """
 
-    FB_GRAPH_API_BASE = "https://graph.facebook.com/v18.0"
-    MAX_RETRIES = 3
-    INTER_CALL_PAUSE = 1.0  # seconds between API calls
-
-    def __init__(self, page_id: str, access_token: str) -> None:
-        self._page_id = page_id
-        self._access_token = access_token
-        self._time_calculator = OptimalTimeCalculator()
-
-    def validate_token_permissions(self) -> tuple[bool, list[str]]:
-        """Validate that the Facebook token has required permissions.
-
-        Returns:
-            Tuple of (is_valid, list_of_missing_permissions).
-        """
-        try:
-            url = f"{self.FB_GRAPH_API_BASE}/debug_token"
-            params = {
-                "input_token": self._access_token,
-                "access_token": self._access_token,
-            }
-            response = requests.get(url, params=params, timeout=30)
-            data = response.json()
-
-            if "error" in data:
-                return False, [f"Token validation error: {data['error'].get('message', 'Unknown error')}"]
-
-            token_data = data.get("data", {})
-            scopes = token_data.get("scopes", [])
-
-            required = ["pages_manage_posts", "pages_read_engagement"]
-            missing = [p for p in required if p not in scopes]
-
-            if missing:
-                return False, missing
-
-            # Check expiry
-            expires_at = token_data.get("expires_at", 0)
-            if expires_at > 0:
-                expiry = datetime.fromtimestamp(expires_at, tz=timezone.utc)
-                if expiry < datetime.now(timezone.utc) + timedelta(hours=1):
-                    return False, ["Token expires within 1 hour. Please refresh."]
-
-            return True, []
-
-        except requests.RequestException as e:
-            return False, [f"Could not validate token: {e}"]
-
-    def calculate_schedule(
+    def __init__(
         self,
-        start_date: datetime,
-        total_days: int,
-        posts_per_day: int,
-    ) -> list[datetime]:
-        """Calculate optimal posting times for the schedule.
+        *,
+        client=None,
+        page_id: str = "",
+        access_token: str = "",
+        sleep_fn: Callable[[float], None] = time.sleep,
+        time_fn: Callable[[], datetime] = lambda: datetime.now().astimezone(),
+        max_retries: int = MAX_SCHEDULE_RETRIES,
+    ) -> None:
+        self.client = client
+        self.page_id = page_id
+        self.access_token = access_token
+        self._sleep = sleep_fn
+        self._now = time_fn
+        self.max_retries = max_retries
 
-        Args:
-            start_date: First day of scheduling.
-            total_days: Number of days to schedule.
-            posts_per_day: Posts per day.
+    def _validate_bounds(self, post: SchedulablePost) -> None:
+        if post.scheduled_time is None:
+            raise ValueError("post has no scheduled_time")
+        lead = post.scheduled_time - self._now()
+        if lead < MIN_SCHEDULE_LEAD:
+            raise ValueError("scheduled_time must be >= 10 minutes in the future")
+        if lead > MAX_SCHEDULE_LEAD:
+            raise ValueError("scheduled_time must be <= 75 days in the future")
 
-        Returns:
-            List of scheduled datetime objects.
-        """
-        return self._time_calculator.calculate_times(start_date, total_days, posts_per_day)
-
-    def schedule_all(self, posts: list[SchedulablePost]) -> ScheduleResult:
-        """Schedule all posts to Facebook.
-
-        Args:
-            posts: List of posts with assigned scheduled_times.
-
-        Returns:
-            ScheduleResult with counts and failure details.
-        """
+    def schedule_all(self, posts: List[SchedulablePost]) -> ScheduleResult:
         result = ScheduleResult(total=len(posts))
-
-        for i, post in enumerate(posts):
-            click.echo(f"  Scheduling post {i + 1}/{len(posts)}...")
-
-            success = self._schedule_single_post(post)
-
-            if success:
+        for post in posts:
+            if self._schedule_one(post):
                 result.scheduled += 1
             else:
                 result.failed += 1
-                result.failures.append({
-                    "post_id": post.id,
-                    "topic": post.content.topic,
-                    "error": "Failed after max retries",
-                })
+                result.failures.append(
+                    {"post_id": post.id, "error": post.error or "unknown"}
+                )
+            self._sleep(FB_API_CALL_PAUSE_SECONDS)  # 1s pause between calls
 
-            # Inter-call pause to respect rate limits
-            if i < len(posts) - 1:
-                time.sleep(self.INTER_CALL_PAUSE)
-
+        # Report accuracy invariant: scheduled + failed == total.
+        assert result.scheduled + result.failed == result.total
+        logger.info(
+            "Scheduling complete: %d scheduled, %d failed of %d total",
+            result.scheduled,
+            result.failed,
+            result.total,
+        )
         return result
 
-    def _schedule_single_post(self, post: SchedulablePost) -> bool:
-        """Schedule a single post with retry logic.
-
-        Returns:
-            True if scheduled successfully, False otherwise.
-        """
-        if not post.scheduled_time:
-            click.echo("    No scheduled_time set. Skipping.")
+    def _schedule_one(self, post: SchedulablePost) -> bool:
+        try:
+            self._validate_bounds(post)
+        except ValueError as exc:
             post.status = PostStatus.FAILED
+            post.error = str(exc)
             return False
 
-        # Validate time bounds
-        now = datetime.now(timezone.utc)
-        min_time = now + timedelta(minutes=10)
-        max_time = now + timedelta(days=75)
-
-        if post.scheduled_time < min_time:
-            click.echo("    Scheduled time is less than 10 minutes in the future. Adjusting...")
-            post.scheduled_time = now + timedelta(minutes=15)
-
-        if post.scheduled_time > max_time:
-            click.echo("    Scheduled time exceeds 75 days. Skipping.")
-            post.status = PostStatus.FAILED
-            return False
-
-        for attempt in range(self.MAX_RETRIES):
+        attempt = 0
+        while attempt < self.max_retries:
             try:
-                response = self._call_facebook_api(post)
-
-                if response.status_code == 200:
-                    data = response.json()
-                    post.facebook_post_id = data.get("id", "")
-                    post.status = PostStatus.SCHEDULED
-                    return True
-                elif response.status_code == 429:
-                    # Rate limited - wait and retry
-                    retry_after = int(response.headers.get("Retry-After", "60"))
-                    click.echo(f"    Facebook rate limited. Waiting {retry_after}s...")
-                    time.sleep(retry_after)
-                elif response.status_code == 401:
-                    # Token expired - fatal error
-                    click.echo("    Facebook token expired or invalid!")
-                    post.status = PostStatus.FAILED
-                    raise RuntimeError("Facebook token expired")
-                else:
-                    error_data = response.json() if response.content else {}
-                    error_msg = error_data.get("error", {}).get("message", f"HTTP {response.status_code}")
-                    click.echo(f"    Facebook API error (attempt {attempt + 1}): {error_msg}")
-
-            except requests.RequestException as e:
-                click.echo(f"    Network error (attempt {attempt + 1}): {e}")
-            except RuntimeError:
+                fb_id = self.client.schedule_photo(
+                    page_id=self.page_id,
+                    image_path=post.image_path,
+                    message=post.content.caption(),
+                    scheduled_time=post.scheduled_time,
+                    token=self.access_token,
+                )
+                post.facebook_post_id = fb_id
+                post.status = PostStatus.SCHEDULED
+                return True
+            except FacebookTokenError:
+                # Non-recoverable: propagate so the orchestrator can halt.
+                post.status = PostStatus.FAILED
+                post.error = "Facebook token expired or invalid (401)"
                 raise
-
-            # Exponential backoff
-            if attempt < self.MAX_RETRIES - 1:
-                wait = 2 ** (attempt + 1)
-                time.sleep(wait)
-
-            post.retry_count = attempt + 1
-
-        # All retries failed
-        post.status = PostStatus.FAILED
+            except FacebookRateLimitError:
+                logger.warning("Facebook rate limit hit; pausing 60s before retry")
+                self._sleep(60)
+                # A rate-limit pause does not consume a retry.
+                continue
+            except Exception as exc:  # noqa: BLE001
+                attempt += 1
+                post.retry_count = attempt
+                post.error = str(exc)
+                if attempt < self.max_retries:
+                    self._sleep(2 ** attempt)  # 2s, 4s, 8s
+                else:
+                    post.status = PostStatus.FAILED
         return False
 
-    def _call_facebook_api(self, post: SchedulablePost) -> requests.Response:
-        """Make the actual Facebook Graph API call to schedule a post."""
-        url = f"{self.FB_GRAPH_API_BASE}/{self._page_id}/photos"
+    def cancel(self, post_ids: List[str]) -> dict:
+        results = {}
+        for pid in post_ids:
+            try:
+                ok = self.client.cancel(pid, self.access_token)
+                results[pid] = "cancelled" if ok else "failed"
+            except Exception as exc:  # noqa: BLE001
+                results[pid] = f"error: {exc}"
+            self._sleep(FB_API_CALL_PAUSE_SECONDS)
+        return results
 
-        # Build message with hashtags
-        message = post.content.body_text
-        if post.content.hashtags:
-            hashtag_str = " ".join(f"#{tag}" for tag in post.content.hashtags)
-            message = f"{message}\n\n{hashtag_str}"
 
-        # Convert scheduled_time to Unix timestamp
-        scheduled_ts = int(post.scheduled_time.timestamp())  # type: ignore
+class FacebookGraphClient:  # pragma: no cover - requires real network/token
+    """Concrete Facebook Graph API client using requests."""
 
-        # Prepare multipart form data
-        data = {
-            "message": message,
-            "scheduled_publish_time": str(scheduled_ts),
-            "published": "false",
-            "access_token": self._access_token,
-        }
+    def __init__(self, base_url: str = GRAPH_API_BASE) -> None:
+        self.base_url = base_url
 
-        files = {}
-        if post.image_path and Path(post.image_path).exists():
-            files["source"] = open(post.image_path, "rb")
+    def schedule_photo(
+        self, *, page_id, image_path, message, scheduled_time, token
+    ) -> str:
+        import requests
 
-        try:
-            response = requests.post(url, data=data, files=files, timeout=60)
-        finally:
-            if files:
-                files["source"].close()
+        url = f"{self.base_url}/{page_id}/photos"
+        unix_time = int(scheduled_time.timestamp())
+        with open(image_path, "rb") as fh:
+            response = requests.post(
+                url,
+                data={
+                    "message": message,
+                    "published": "false",
+                    "scheduled_publish_time": unix_time,
+                    "access_token": token,
+                },
+                files={"source": fh},
+                timeout=120,
+            )
+        _raise_for_graph_status(response)
+        return response.json().get("id", "")
 
-        return response
+    def cancel(self, post_id: str, token: str) -> bool:
+        import requests
 
-    def cancel_post(self, facebook_post_id: str) -> bool:
-        """Cancel a scheduled post on Facebook.
+        url = f"{self.base_url}/{post_id}"
+        response = requests.delete(url, data={"access_token": token}, timeout=60)
+        _raise_for_graph_status(response)
+        return bool(response.json().get("success", True))
 
-        Args:
-            facebook_post_id: The Facebook post ID to cancel.
+    def debug_token(self, token: str) -> dict:
+        import requests
 
-        Returns:
-            True if cancelled successfully.
-        """
-        try:
-            url = f"{self.FB_GRAPH_API_BASE}/{facebook_post_id}"
-            params = {"access_token": self._access_token}
-            response = requests.delete(url, params=params, timeout=30)
-            return response.status_code == 200
-        except requests.RequestException as e:
-            click.echo(f"  Failed to cancel post {facebook_post_id}: {e}")
-            return False
+        url = f"{self.base_url}/debug_token"
+        response = requests.get(
+            url,
+            params={"input_token": token, "access_token": token},
+            timeout=60,
+        )
+        _raise_for_graph_status(response)
+        return response.json().get("data", {})
+
+
+def _raise_for_graph_status(response) -> None:  # pragma: no cover
+    if response.status_code == 401:
+        raise FacebookTokenError("Facebook token expired or invalid")
+    if response.status_code == 429:
+        raise FacebookRateLimitError("Facebook rate limit exceeded")
+    response.raise_for_status()
