@@ -230,7 +230,7 @@ END STRUCTURE
 **Validation Rules**:
 - posts_per_day must be between 1 and 15
 - duration must be ONE_WEEK or ONE_MONTH
-- access_token must be a valid Facebook page token with publish_pages permission
+- access_token must be a valid Facebook page token with pages_manage_posts and pages_read_engagement permissions
 - gemini_api_key must be a valid Google AI Studio key (free to obtain)
 - output_dir must be writable
 
@@ -241,7 +241,7 @@ STRUCTURE PostContent
   id: UUID
   hook_text: String           // Short text for image overlay (max 60 chars)
   body_text: String           // Full post caption (max 500 chars)
-  category: Category          // TIPS, NEWS, EDUCATIONAL, MOTIVATIONAL, STATS
+  category: Category          // TIPS, NEWS_COMMENTARY, EDUCATIONAL, MOTIVATIONAL, STATS_FACTS, COMPARISON, MYTH_BUSTING
   topic: String               // Specific topic within category
   hashtags: List[String]      // Relevant hashtags (max 5)
   created_at: DateTime
@@ -374,7 +374,7 @@ END
 **Preconditions:**
 - config is validated and all API keys are present
 - Gemini API key is valid (free from Google AI Studio)
-- Facebook page token has publish_pages and manage_pages permissions
+- Facebook page token has pages_manage_posts and pages_read_engagement permissions
 - Network connectivity available for API calls
 
 **Postconditions:**
@@ -894,19 +894,19 @@ END SEQUENCE
 
 *For any* two posts scheduled within a 7-day window, their topics SHALL be different. Equivalently, the Topic_Selector SHALL never return a topic that appears in the used_topics set from the preceding 7 days.
 
-**Validates: Requirement 3.1**
+**Validates: Requirements 3.1**
 
 ### Property 4: Daily Category Diversity
 
 *For any* single day of scheduled posts, the number of distinct content categories used SHALL be at least min(3, total_posts_that_day).
 
-**Validates: Requirement 3.3**
+**Validates: Requirements 3.3**
 
 ### Property 5: Topic Category Membership
 
 *For any* topic selected by the Topic_Selector, that topic SHALL belong to one of the categories in the configured content_categories list.
 
-**Validates: Requirement 3.4**
+**Validates: Requirements 3.4**
 
 ### Property 6: Image Output Compliance
 
@@ -918,25 +918,25 @@ END SEQUENCE
 
 *For any* category, the Image_Generator prompt building function SHALL produce a prompt string containing style keywords specific to that category and a specification for text overlay space, formatted as a valid Pollinations.ai URL.
 
-**Validates: Requirement 4.3**
+**Validates: Requirements 4.3**
 
 ### Property 8: Text Overlay Contrast
 
 *For any* image and hook_text combination processed by the Text_Overlay_Engine (Pillow), the rendered text SHALL have a contrast ratio of at least 4.5:1 against its immediate background.
 
-**Validates: Requirement 5.1**
+**Validates: Requirements 5.1**
 
 ### Property 9: Text Overlay Safe Zones
 
 *For any* text overlay applied to a 1200-pixel-wide image, the text bounding box width SHALL not exceed 1000 pixels and SHALL be centered within the image margins.
 
-**Validates: Requirement 5.2**
+**Validates: Requirements 5.2**
 
 ### Property 10: Font Size Minimum Bound
 
 *For any* hook_text that requires font size reduction to fit, the Text_Overlay_Engine SHALL never reduce the font size below 16pt.
 
-**Validates: Requirement 5.3**
+**Validates: Requirements 5.3**
 
 ### Property 11: Overlay Non-Destructiveness
 
@@ -948,25 +948,25 @@ END SEQUENCE
 
 *For any* post in a generated schedule, its scheduled_time (in EST) SHALL fall within one of the four engagement windows: 7:00-9:00 AM, 11:30 AM-1:30 PM, 5:00-7:00 PM, or 8:00-10:00 PM.
 
-**Validates: Requirement 6.1**
+**Validates: Requirements 6.1**
 
 ### Property 13: Proportional Window Distribution
 
 *For any* generated daily schedule, the number of posts allocated to each engagement window SHALL be proportional to the window's weight (Lunch highest, Morning and After-work high, Evening medium), with a tolerance of ±1 post per window.
 
-**Validates: Requirement 6.2**
+**Validates: Requirements 6.2**
 
 ### Property 14: Time Randomization Across Days
 
 *For any* two different days in the same schedule, the posting times for the same window slot SHALL differ (no identical minute-level times repeated day over day).
 
-**Validates: Requirement 6.3**
+**Validates: Requirements 6.3**
 
 ### Property 15: Minimum 30-Minute Gap
 
 *For any* two consecutive posts scheduled on the same day, the time difference between them SHALL be at least 30 minutes.
 
-**Validates: Requirement 6.4**
+**Validates: Requirements 6.4**
 
 ### Property 16: Scheduling Time Bounds
 
@@ -978,7 +978,7 @@ END SEQUENCE
 
 *For any* completed scheduling run, the sum of scheduled_count and failed_count in the report SHALL equal the total number of posts attempted.
 
-**Validates: Requirement 7.7**
+**Validates: Requirements 7.7**
 
 ### Property 18: Bulk Generation Count Correctness
 
@@ -990,37 +990,37 @@ END SEQUENCE
 
 *For any* set of completed posts, writing a manifest file and reading it back SHALL produce a data structure equivalent to the original post details and scheduled times.
 
-**Validates: Requirement 8.4**
+**Validates: Requirements 8.4**
 
 ### Property 20: Resilience Continuation
 
 *For any* bulk generation run where K individual posts fail content generation, the Orchestrator SHALL still attempt generation for all remaining (total - K) posts without halting.
 
-**Validates: Requirement 9.3**
+**Validates: Requirements 9.3**
 
 ### Property 21: Token Secrecy
 
 *For any* operation that produces log output or console display, the access token string and Gemini API key SHALL never appear in that output.
 
-**Validates: Requirement 10.2**
+**Validates: Requirements 10.2**
 
 ### Property 22: Content Compliance Rejection
 
 *For any* generated content containing specific stock picks, guarantees of returns, or misleading financial claims, the Content_Validator SHALL reject the content.
 
-**Validates: Requirement 10.4**
+**Validates: Requirements 10.4**
 
-### Property 23: Negative Prompt Inclusion
+### Property 23: Prompt Safety Construction
 
 *For any* image generation request to Pollinations.ai regardless of category, the prompt SHALL be constructed to prevent inappropriate or misleading imagery through careful positive prompt engineering.
 
-**Validates: Requirement 10.5**
+**Validates: Requirements 10.5**
 
 ### Property 24: Free Tier Rate Limit Compliance
 
 *For any* burst of API calls to Google Gemini, the system SHALL not exceed 15 requests per minute (free tier limit), implementing automatic throttling when approaching the limit.
 
-**Validates: Requirement 9.1**
+**Validates: Requirements 11.1**
 
 
 
