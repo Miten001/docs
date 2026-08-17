@@ -762,9 +762,10 @@ footer a {
 }
 
 .photo-credit {
-  font-size: 0.8rem;
-  opacity: 0.85;
-  margin-top: 6px;
+  font-size: 0.6rem;
+  opacity: 0.38;
+  margin-top: 8px;
+  letter-spacing: 0.2px;
 }
 
 /* ------------------------------------------------------------------ */
