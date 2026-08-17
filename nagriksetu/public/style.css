@@ -220,7 +220,7 @@ main {
   position: relative;
   background:
     linear-gradient(135deg, rgba(30, 58, 138, 0.90) 0%, rgba(79, 70, 229, 0.80) 45%, rgba(13, 148, 136, 0.85) 100%),
-    url("https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&w=1600&q=80");
+    url("https://commons.wikimedia.org/wiki/Special:FilePath/Deekshabhoomi,_Nagpur_in_India.jpg?width=1600");
   background-size: cover;
   background-position: center;
   color: #ffffff;
@@ -707,6 +707,12 @@ footer {
 
 footer a {
   color: #ffffff;
+}
+
+.photo-credit {
+  font-size: 0.8rem;
+  opacity: 0.85;
+  margin-top: 6px;
 }
 
 /* ------------------------------------------------------------------ */
