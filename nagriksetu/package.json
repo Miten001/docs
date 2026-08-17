@@ -1,0 +1,27 @@
+{
+  "name": "nagriksetu",
+  "version": "1.0.0",
+  "description": "NagrikSetu — a civic engagement platform for the citizens of Nagpur to report, track, and view local civic problems.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "civic",
+    "complaints",
+    "express",
+    "sqlite",
+    "nagpur"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.21.2",
+    "multer": "^2.0.1"
+  },
+  "devDependencies": {
+    "fast-check": "^3.23.2"
+  }
+}

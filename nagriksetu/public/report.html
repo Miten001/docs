@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report a Problem — NagrikSetu</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="site-header">
+      <a class="brand" href="index.html">
+        NagrikSetu
+        <span class="brand-tagline">Civic engagement for Nagpur</span>
+      </a>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="report.html" aria-current="page">Report Problem</a>
+        <a href="track.html">Track Complaint</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="about.html">About</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="report-page">
+    <div class="page-header">
+      <h1>Report a Problem</h1>
+      <p>
+        Fill in the details of the civic problem you would like to report.
+        Fields marked with <span class="required-mark">*</span> are required.
+        On submission you will receive a unique Complaint ID.
+      </p>
+    </div>
+
+    <section class="report-card">
+      <h2>Complaint Details</h2>
+      <form id="reportForm" novalidate>
+        <div class="form-field">
+          <label for="name">Your Name <span class="required-mark">*</span></label>
+          <input type="text" id="name" name="name" autocomplete="name" required>
+        </div>
+
+        <div class="form-field">
+          <label for="category">Problem Type <span class="required-mark">*</span></label>
+          <select id="category" name="category" required>
+            <option value="" selected disabled>Select a problem type</option>
+            <option value="Pothole">Pothole</option>
+            <option value="Garbage">Garbage</option>
+            <option value="Water">Water</option>
+            <option value="Traffic">Traffic</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label for="locationArea">Location / Area <span class="required-mark">*</span></label>
+          <input type="text" id="locationArea" name="locationArea" required>
+          <span class="field-hint">For example, the neighbourhood, street, or landmark.</span>
+        </div>
+
+        <div class="form-field">
+          <label for="description">Describe the Problem <span class="required-mark">*</span></label>
+          <textarea id="description" name="description" placeholder="Describe the problem in detail" required></textarea>
+        </div>
+
+        <div class="form-field">
+          <label for="contact">Contact (optional)</label>
+          <input type="text" id="contact" name="contact" autocomplete="tel">
+          <span class="field-hint">A phone number or email so we can reach you if needed.</span>
+        </div>
+
+        <div class="form-field">
+          <label for="photo">Upload Photo (optional)</label>
+          <input type="file" id="photo" name="photo" accept="image/*">
+          <span class="field-hint">Attach a photo of the problem to help us understand it.</span>
+        </div>
+
+        <button type="submit" id="submitComplaint">Submit Complaint</button>
+      </form>
+
+      <div id="reportMessage" role="status" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; NagrikSetu &mdash; A civic engagement platform for the citizens of Nagpur.</p>
+  </footer>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>

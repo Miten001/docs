@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Civic Dashboard — NagrikSetu</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="site-header">
+      <a class="brand" href="index.html">
+        NagrikSetu
+        <span class="brand-tagline">Civic engagement for Nagpur</span>
+      </a>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="report.html">Report Problem</a>
+        <a href="track.html">Track Complaint</a>
+        <a href="dashboard.html" aria-current="page">Dashboard</a>
+        <a href="about.html">About</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="dashboard">
+    <div class="page-header">
+      <h1>Civic Dashboard</h1>
+      <p>
+        An at-a-glance overview of reported civic problems across Nagpur. The
+        figures below are demonstration values.
+      </p>
+    </div>
+
+    <section aria-labelledby="category-heading">
+      <h2 id="category-heading">Complaints by Category</h2>
+      <div class="dashboard-cards">
+        <div class="dashboard-card">
+          <span class="count">24</span>
+          <span class="label">Pothole</span>
+        </div>
+        <div class="dashboard-card">
+          <span class="count">18</span>
+          <span class="label">Garbage</span>
+        </div>
+        <div class="dashboard-card">
+          <span class="count">12</span>
+          <span class="label">Water</span>
+        </div>
+        <div class="dashboard-card">
+          <span class="count">15</span>
+          <span class="label">Traffic</span>
+        </div>
+        <div class="dashboard-card">
+          <span class="count">7</span>
+          <span class="label">Other</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="status-section" aria-labelledby="status-heading">
+      <h2 id="status-heading">Complaints by Status</h2>
+      <div class="status-cards">
+        <div class="status resolved">
+          <span class="count">42</span>
+          <span class="label">Resolved</span>
+        </div>
+        <div class="status status-progress">
+          <span class="count">25</span>
+          <span class="label">In Progress</span>
+        </div>
+        <div class="status pending">
+          <span class="count">18</span>
+          <span class="label">Pending</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; NagrikSetu &mdash; A civic engagement platform for the citizens of Nagpur.</p>
+  </footer>
+</body>
+</html>
