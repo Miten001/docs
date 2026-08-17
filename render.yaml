@@ -1,0 +1,13 @@
+# Render Blueprint for NagrikSetu
+# One-click deploy: on Render, choose "New +" -> "Blueprint", pick the Miten001/docs repo.
+services:
+  - type: web
+    name: nagriksetu
+    runtime: node
+    plan: free
+    rootDir: nagriksetu
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
