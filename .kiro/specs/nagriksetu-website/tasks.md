@@ -6,14 +6,14 @@ This plan builds NagrikSetu as a self-contained Node.js + Express + SQLite appli
 
 ## Tasks
 
-- [ ] 1. Scaffold the NagrikSetu project
+- [x] 1. Scaffold the NagrikSetu project
   - [x] 1.1 Create the project structure and manifest
     - Create the `nagriksetu/` project directory structure: `src/`, `public/`, `uploads/`, `data/`.
     - Create `package.json` with the project manifest, `type: "module"` (for ES module server code), a `start` script running `node server.js`, and a `test` script.
     - Add dependencies (`express`, `better-sqlite3` or equivalent, `multer`) and the chosen property-based testing library (e.g., `fast-check`) plus a test runner.
     - _Requirements: 5.1, 5.2_
 
-- [ ] 2. Implement the database layer
+- [x] 2. Implement the database layer
   - [x] 2.1 Create `src/db.js` with schema initialization
     - Open (creating if absent) the SQLite database file under `data/`.
     - Create the `complaints` table if it does not exist with all columns: `id`, `complaint_id`, `year`, `sequence`, `citizen_name`, `category`, `location_area`, `description`, `contact`, `photo_reference`, `status`, `created_at`, `updated_at`.
@@ -21,37 +21,37 @@ This plan builds NagrikSetu as a self-contained Node.js + Express + SQLite appli
     - Support an in-memory/temporary database path for tests, and export the shared connection handle.
     - _Requirements: 5.3, 5.4_
 
-- [ ] 3. Implement Complaint_ID generation
+- [x] 3. Implement Complaint_ID generation
   - [x] 3.1 Create `src/complaintId.js`
     - Implement `generateComplaintId(db, now)` producing `NGP-<four-digit-year>-<zero-padded-sequence>`.
     - Derive the sequence from `SELECT COALESCE(MAX(sequence),0) FROM complaints WHERE year = :year` plus one; zero-pad to at least four digits and allow natural growth beyond 9999.
     - _Requirements: 1.4, 5.4_
 
-- [ ] 4. Implement submission validation
+- [x] 4. Implement submission validation
   - [x] 4.1 Create `src/validation.js`
     - Implement `validateSubmission(input)` returning `{ valid, errors }` where `errors` lists missing required fields (citizen name, category, location area, description).
     - Reject a `category` that is not one of Pothole, Garbage, Water, Traffic, Other.
     - _Requirements: 1.2, 1.9_
 
-  - [ ]* 4.2 Write property test for incomplete-submission rejection
+  - [x]* 4.2 Write property test for incomplete-submission rejection
     - **Property 5: Incomplete submissions are rejected without persistence**
     - **Validates: Requirements 1.9**
 
-- [ ] 5. Implement the data-access layer
+- [x] 5. Implement the data-access layer
   - [x] 5.1 Create `src/complaints.js`
     - Implement `createComplaint(input)`: within a single transaction, call `generateComplaintId`, insert the record with `status = 'Pending'` and ISO 8601 `created_at`/`updated_at`, persist `photo_reference` when a photo was attached, and return the generated Complaint_ID. Roll back on any failure.
     - Implement `getComplaintById(id)`: return the matching record mapped to the API/domain shape, or `null`.
     - _Requirements: 1.3, 1.5, 1.6, 1.11, 5.3, 5.5_
 
-  - [ ]* 5.2 Write property test for creation invariants
+  - [x]* 5.2 Write property test for creation invariants
     - **Property 3: Creation invariants — pending status and valid timestamps**
     - **Validates: Requirements 1.5, 1.6**
 
-  - [ ]* 5.3 Write property test for photo reference conditional persistence
+  - [x]* 5.3 Write property test for photo reference conditional persistence
     - **Property 4: Photo reference conditional persistence**
     - **Validates: Requirements 1.11**
 
-- [ ] 6. Implement the Express server and REST endpoints
+- [x] 6. Implement the Express server and REST endpoints
   - [x] 6.1 Create `server.js` with static serving and app wiring
     - Create the Express app, register `express.static('public')` and photo serving from `uploads/`, and listen on a configurable port (default 3000).
     - Wire `src/db.js`, `src/complaints.js`, `src/validation.js`, and `src/complaintId.js` together.
@@ -70,36 +70,36 @@ This plan builds NagrikSetu as a self-contained Node.js + Express + SQLite appli
     - Return `404` JSON for any undefined route and a generic `500` JSON on unexpected errors.
     - _Requirements: 5.6_
 
-  - [ ]* 6.5 Write property test for the submission-then-tracking round trip
+  - [x]* 6.5 Write property test for the submission-then-tracking round trip
     - **Property 1: Submission-then-tracking round trip**
     - **Validates: Requirements 1.3, 1.7, 2.2, 5.1, 5.2, 5.3**
 
-  - [ ]* 6.6 Write property test for well-formed and unique Complaint_IDs
+  - [x]* 6.6 Write property test for well-formed and unique Complaint_IDs
     - **Property 2: Complaint IDs are well-formed and unique**
     - **Validates: Requirements 1.4, 5.4**
 
-  - [ ]* 6.7 Write property test for unknown-ID not-found behavior
+  - [x]* 6.7 Write property test for unknown-ID not-found behavior
     - **Property 6: Unknown Complaint_ID returns not-found**
     - **Validates: Requirements 2.4**
 
-  - [ ]* 6.8 Write property test for lookup consistency (read idempotence)
+  - [x]* 6.8 Write property test for lookup consistency (read idempotence)
     - **Property 7: Lookup consistency (read idempotence)**
     - **Validates: Requirements 5.5**
 
-  - [ ]* 6.9 Write property test for undefined-route not-found behavior
+  - [x]* 6.9 Write property test for undefined-route not-found behavior
     - **Property 8: Undefined routes return not-found**
     - **Validates: Requirements 5.6**
 
-- [ ] 7. Checkpoint - backend complete
+- [x] 7. Checkpoint - backend complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 8. Author the shared stylesheet
+- [x] 8. Author the shared stylesheet
   - [x] 8.1 Create `public/style.css`
     - Define consistent presentation across all pages with correctly spelled class names, replacing defective identifiers such as `staus-section` and `satus progress` with `status-section` and `status-progress`.
     - Ensure every class referenced by the HTML pages has a matching selector.
     - _Requirements: 4.4, 6.3, 6.4_
 
-- [ ] 9. Author the frontend pages (defect-free HTML)
+- [x] 9. Author the frontend pages (defect-free HTML)
   - [x] 9.1 Create `public/index.html` (Home_Page)
     - Introduce NagrikSetu; include navigation links to Report, Track, Dashboard, and About; link the shared stylesheet.
     - Ensure well-formed header tags and corrected spelling (no "placeholdeer").
@@ -126,35 +126,35 @@ This plan builds NagrikSetu as a self-contained Node.js + Express + SQLite appli
     - Ensure well-formed header tags and corrected spelling.
     - _Requirements: 4.2, 4.3, 4.4, 6.1, 6.2_
 
-  - [ ]* 9.6 Write unit tests for static page content
+  - [x]* 9.6 Write unit tests for static page content
     - Assert form field and category-option presence, dashboard demo values, mission text, and absence of the "placeholdeer" misspelling and defective class names.
     - _Requirements: 1.1, 1.2, 3.1, 3.2, 4.1, 4.2, 6.2_
 
-- [ ] 10. Implement the client ES module
+- [x] 10. Implement the client ES module
   - [x] 10.1 Create `public/script.js`
     - Detect the current page and wire handlers.
     - Report handler: prevent default submit, perform client-side required-field checks with a message identifying the missing input, send the request, and on success display the returned Complaint_ID.
     - Track handler: guard against empty/whitespace Complaint_ID (show a prompt, send no request); otherwise fetch and render details or the no-match message.
     - _Requirements: 1.8, 1.10, 2.3, 2.5, 2.6_
 
-  - [ ]* 10.2 Write unit tests for client DOM rendering
+  - [x]* 10.2 Write unit tests for client DOM rendering
     - Test report success/validation rendering and track details/not-found/empty-input handling against mocked responses.
     - _Requirements: 1.8, 1.10, 2.3, 2.5, 2.6_
 
-- [ ] 11. Cross-page structural property tests
-  - [ ]* 11.1 Write property test for navigation and stylesheet completeness
+- [x] 11. Cross-page structural property tests
+  - [x]* 11.1 Write property test for navigation and stylesheet completeness
     - **Property 9: Navigation and stylesheet completeness across all pages**
     - **Validates: Requirements 4.3, 4.4**
 
-  - [ ]* 11.2 Write property test for well-formed header tags
+  - [x]* 11.2 Write property test for well-formed header tags
     - **Property 10: Header tags are well-formed across all pages**
     - **Validates: Requirements 6.1**
 
-  - [ ]* 11.3 Write property test for HTML class references resolving in the stylesheet
+  - [x]* 11.3 Write property test for HTML class references resolving in the stylesheet
     - **Property 11: All HTML class references resolve in the stylesheet**
     - **Validates: Requirements 6.4**
 
-- [ ] 12. Final checkpoint - Ensure all tests pass
+- [x] 12. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
