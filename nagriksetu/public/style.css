@@ -17,27 +17,27 @@
 /* ------------------------------------------------------------------ */
 :root {
   /* Civic blue/green palette */
-  --color-primary: #0b5394;        /* deep civic blue */
-  --color-primary-dark: #073763;
-  --color-primary-light: #d6e4f0;
-  --color-accent: #1a936f;         /* civic green */
-  --color-accent-dark: #12775a;
-  --color-accent-light: #d9efe6;
+  --color-primary: #1d4ed8;        /* rich royal blue */
+  --color-primary-dark: #1e3a8a;
+  --color-primary-light: #dbeafe;
+  --color-accent: #059669;         /* rich emerald */
+  --color-accent-dark: #047857;
+  --color-accent-light: #d1fae5;
 
   /* Neutrals */
-  --color-bg: #f4f7fa;
+  --color-bg: #eef2ff;
   --color-surface: #ffffff;
   --color-border: #dde5ec;
   --color-text: #1f2d3d;
   --color-text-muted: #5b6b7b;
 
   /* Status colors */
-  --color-pending: #b8860b;        /* amber for Pending */
-  --color-pending-bg: #fdf6e3;
-  --color-progress: #0b5394;       /* blue for In Progress */
-  --color-progress-bg: #e7f0f8;
-  --color-resolved: #1a936f;       /* green for Resolved */
-  --color-resolved-bg: #e2f4ec;
+  --color-pending: #d97706;        /* rich amber for Pending */
+  --color-pending-bg: #fef3c7;
+  --color-progress: #2563eb;       /* rich blue for In Progress */
+  --color-progress-bg: #dbeafe;
+  --color-resolved: #059669;       /* rich emerald for Resolved */
+  --color-resolved-bg: #d1fae5;
 
   /* Feedback */
   --color-error: #c0392b;
@@ -48,8 +48,8 @@
   /* Layout */
   --radius: 10px;
   --radius-sm: 6px;
-  --shadow-sm: 0 1px 3px rgba(15, 40, 70, 0.08);
-  --shadow-md: 0 4px 14px rgba(15, 40, 70, 0.10);
+  --shadow-sm: 0 2px 6px rgba(30, 41, 120, 0.10);
+  --shadow-md: 0 8px 24px rgba(30, 41, 120, 0.18);
   --max-width: 1080px;
   --gap: 20px;
 
@@ -75,7 +75,8 @@ body {
   font-size: 16px;
   line-height: 1.6;
   color: var(--color-text);
-  background-color: var(--color-bg);
+  background: linear-gradient(160deg, #eef2ff 0%, #f5f3ff 45%, #ecfeff 100%);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -115,7 +116,7 @@ img {
 /* Header / navigation bar                                             */
 /* ------------------------------------------------------------------ */
 header {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  background: linear-gradient(135deg, #1e3a8a 0%, #4f46e5 45%, #0d9488 100%);
   color: #ffffff;
   box-shadow: var(--shadow-md);
 }
@@ -212,11 +213,12 @@ main {
 }
 
 .hero {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: linear-gradient(135deg, #ffffff 0%, #eef2ff 60%, #ecfeff 100%);
+  border: 1px solid var(--color-primary-light);
+  border-top: 4px solid var(--color-primary);
   border-radius: var(--radius);
   padding: 40px 32px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
   margin-bottom: 32px;
 }
 
@@ -379,7 +381,7 @@ input[type="submit"] {
   padding: 11px 22px;
   border: none;
   border-radius: var(--radius-sm);
-  background-color: var(--color-primary);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #4f46e5 100%);
   color: #ffffff;
   cursor: pointer;
   transition: background-color 0.15s ease, transform 0.05s ease;
@@ -388,7 +390,7 @@ input[type="submit"] {
 .btn:hover,
 button:hover,
 input[type="submit"]:hover {
-  background-color: var(--color-primary-dark);
+  background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
   text-decoration: none;
 }
 
@@ -405,11 +407,11 @@ button:focus-visible {
 }
 
 .btn-secondary {
-  background-color: var(--color-accent);
+  background: linear-gradient(135deg, var(--color-accent) 0%, #0d9488 100%);
 }
 
 .btn-secondary:hover {
-  background-color: var(--color-accent-dark);
+  background: linear-gradient(135deg, var(--color-accent-dark) 0%, var(--color-accent) 100%);
 }
 
 .btn-outline {
