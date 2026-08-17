@@ -1,0 +1,10 @@
+node_modules/
+
+# Runtime-generated files (keep the directories via .gitkeep)
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+uploads/*
+!uploads/.gitkeep
+!data/.gitkeep

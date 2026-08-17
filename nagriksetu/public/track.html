@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track a Complaint — NagrikSetu</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="site-header">
+      <a class="brand" href="index.html">
+        NagrikSetu
+        <span class="brand-tagline">Civic engagement for Nagpur</span>
+      </a>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="report.html">Report Problem</a>
+        <a href="track.html" aria-current="page">Track Complaint</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="about.html">About</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="track-page">
+    <div class="page-header">
+      <h1>Track a Complaint</h1>
+      <p>
+        Enter the Complaint ID you received when you submitted your report (for
+        example, <span class="complaint-id">NGP-2024-0042</span>) to see its
+        current status and details.
+      </p>
+    </div>
+
+    <section class="track-card">
+      <h2>Look Up Your Complaint</h2>
+      <form id="trackForm" class="lookup-form" novalidate>
+        <div class="form-field">
+          <label for="complaintId">Complaint ID <span class="required-mark">*</span></label>
+          <input type="text" id="complaintId" name="complaintId" placeholder="NGP-2024-0042" required>
+        </div>
+        <button type="submit" id="trackButton">Track Complaint</button>
+      </form>
+
+      <div class="status-box" id="statusBox">
+        <h3>Complaint Status</h3>
+        <p id="statusText">Enter a Complaint ID above and select &ldquo;Track Complaint&rdquo; to view its details.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; NagrikSetu &mdash; A civic engagement platform for the citizens of Nagpur.</p>
+  </footer>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
