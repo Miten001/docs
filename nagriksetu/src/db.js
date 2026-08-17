@@ -63,8 +63,15 @@ export function openDatabase(dbPath = DEFAULT_DB_PATH) {
   return initSchema(db);
 }
 
-// Shared, application-wide connection handle (created against the default path).
-const db = openDatabase();
+// Shared, application-wide connection handle.
+//
+// The path can be overridden via the NAGRIKSETU_DB_PATH environment variable.
+// This enables test isolation: a test process sets NAGRIKSETU_DB_PATH to a
+// unique temporary file (or ':memory:') *before* importing this module (or
+// server.js, which transitively imports it), so integration tests exercise
+// the real HTTP stack without writing to the shared on-disk data/ database.
+// When the variable is unset, the default on-disk location is used.
+const db = openDatabase(process.env.NAGRIKSETU_DB_PATH || DEFAULT_DB_PATH);
 
 export { DEFAULT_DB_PATH };
 export default db;
