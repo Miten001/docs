@@ -76,10 +76,11 @@ body {
   line-height: 1.6;
   color: var(--color-text);
   background:
-    radial-gradient(circle at 12% 18%, rgba(59, 130, 246, 0.20) 0%, transparent 42%),
-    radial-gradient(circle at 88% 12%, rgba(16, 185, 129, 0.18) 0%, transparent 40%),
-    radial-gradient(circle at 78% 85%, rgba(139, 92, 246, 0.16) 0%, transparent 46%),
-    linear-gradient(160deg, #eef2ff 0%, #f5f3ff 50%, #ecfeff 100%);
+    radial-gradient(circle at 10% 15%, rgba(37, 99, 235, 0.30) 0%, transparent 45%),
+    radial-gradient(circle at 90% 10%, rgba(16, 185, 129, 0.28) 0%, transparent 42%),
+    radial-gradient(circle at 80% 88%, rgba(139, 92, 246, 0.26) 0%, transparent 48%),
+    radial-gradient(circle at 22% 92%, rgba(236, 72, 153, 0.18) 0%, transparent 45%),
+    linear-gradient(160deg, #e8eeff 0%, #f3f0ff 50%, #e6fbff 100%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
 }
@@ -220,7 +221,7 @@ main {
   position: relative;
   background:
     linear-gradient(135deg, rgba(30, 58, 138, 0.90) 0%, rgba(79, 70, 229, 0.80) 45%, rgba(13, 148, 136, 0.85) 100%),
-    url("https://commons.wikimedia.org/wiki/Special:FilePath/Deekshabhoomi,_Nagpur_in_India.jpg?width=1600");
+    url("hero-nagpur.jpg");
   background-size: cover;
   background-position: center;
   color: #ffffff;
@@ -529,6 +530,18 @@ button:focus-visible {
 .dashboard-card {
   text-align: center;
   border-top: 4px solid var(--color-primary);
+  background: linear-gradient(135deg, #ffffff 0%, #f2f6ff 100%);
+}
+
+.dashboard-cards .dashboard-card:nth-child(1) { border-top-color: #ef4444; }
+.dashboard-cards .dashboard-card:nth-child(2) { border-top-color: #f59e0b; }
+.dashboard-cards .dashboard-card:nth-child(3) { border-top-color: #0ea5e9; }
+.dashboard-cards .dashboard-card:nth-child(4) { border-top-color: #8b5cf6; }
+.dashboard-cards .dashboard-card:nth-child(5) { border-top-color: #10b981; }
+
+.dashboard h2 {
+  border-left: 5px solid var(--color-primary);
+  padding-left: 12px;
 }
 
 .dashboard-card .count {
@@ -681,11 +694,11 @@ button:focus-visible {
 }
 
 .feature-card {
-  background: var(--color-surface);
+  background: linear-gradient(135deg, #ffffff 0%, #eef7f3 100%);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: 22px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
   border-top: 4px solid var(--color-accent);
 }
 
